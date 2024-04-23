@@ -69,7 +69,7 @@ pub trait PhysicalLayer {
                 match port_id {
                     Some(port_id) => {
                         let port = self.port_mut(port_id);
-                        port.set_connection(connection);
+                        port.set_connection(connection.clone());
                         self.conn_map_mut().insert(connection.id().into(), port_id);
                     }
                     None => {

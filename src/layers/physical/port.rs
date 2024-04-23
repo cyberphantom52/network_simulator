@@ -72,8 +72,8 @@ impl PhysicalPort {
         self.connection = Some(connection);
     }
 
-    pub fn set_connection(&mut self, connection: &Connection) {
-        self.connection = Some(connection.clone());
+    pub fn set_connection(&mut self, connection: Connection) {
+        self.connection = Some(connection);
     }
 
     pub fn disconnect(&mut self) {
