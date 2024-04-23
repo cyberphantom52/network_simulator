@@ -5,7 +5,7 @@ pub mod physical;
 
 #[derive(PartialEq, Eq, Hash)]
 /// Identifier for a device on the network
-enum Identifier {
+pub enum Identifier {
     Name(String),
 }
 
