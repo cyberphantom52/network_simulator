@@ -5,7 +5,7 @@ use crate::layers::{datalink::Frame, Identifier};
 
 pub trait PhysicalLayer {
     /// Get the ID of the device
-    fn id(&self) -> Identifier;
+    fn id(&self) -> &Identifier;
 
     /// Send a frame
     fn send(&self, frame: Frame);
