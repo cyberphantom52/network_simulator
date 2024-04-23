@@ -8,10 +8,10 @@ pub trait PhysicalLayer {
     fn id(&self) -> &Identifier;
 
     /// Send a frame
-    fn send(&self, frame: Frame);
+    fn send(&self, frame: Frame, port: Option<PortId>);
 
     /// Receive a frame
-    fn receive(&self) -> Frame;
+    fn receive(&self);
 
     /// Get a mappping of physical connections
     fn conn_map(&self) -> &ConnectionMap;
