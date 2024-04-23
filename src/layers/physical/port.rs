@@ -5,7 +5,31 @@ use tokio::sync::{
     RwLock,
 };
 
-pub type PortId = usize;
+/// Wrapper around a port number
+///
+/// This is used to index into the list of physical ports
+#[derive(Debug, Clone, Copy)]
+pub struct PortNumber(u8);
+
+impl Index<PortNumber> for [PhysicalPort] {
+    type Output = PhysicalPort;
+
+    fn index(&self, index: PortNumber) -> &Self::Output {
+        &self[index.0 as usize]
+    }
+}
+
+impl IndexMut<PortNumber> for [PhysicalPort] {
+    fn index_mut(&mut self, index: PortNumber) -> &mut Self::Output {
+        &mut self[index.0 as usize]
+    }
+}
+
+impl From<usize> for PortNumber {
+    fn from(index: usize) -> Self {
+        PortNumber(index as u8)
+    }
+}
 
 #[derive(Debug)]
 pub struct Connection {
@@ -54,12 +78,16 @@ impl Connection {
 
 #[derive(Debug)]
 pub struct PhysicalPort {
+    mac: Option<MacAddr>,
     connection: Option<Connection>,
 }
 
 impl Default for PhysicalPort {
     fn default() -> Self {
-        PhysicalPort { connection: None }
+        PhysicalPort {
+            mac: Some(MacAddr::new()),
+            connection: None,
+        }
     }
 }
 

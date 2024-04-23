@@ -1,4 +1,4 @@
-use super::port::{PhysicalPort, PortId};
+use super::port::{PhysicalPort, PortNumber};
 use super::ConnectionMap;
 use crate::layers::ConnectionTarget;
 use crate::layers::{datalink::Frame, Identifier};
@@ -8,7 +8,7 @@ pub trait PhysicalLayer {
     fn id(&self) -> &Identifier;
 
     /// Send a frame
-    fn send(&self, frame: Frame, port: Option<PortId>);
+    fn send(&self, frame: Frame, port: Option<PortNumber>);
 
     /// Receive a frame
     fn receive(&self);
@@ -20,24 +20,28 @@ pub trait PhysicalLayer {
     fn conn_map_mut(&mut self) -> &mut ConnectionMap;
 
     /// Get all physical ports
+    ///
+    /// The index of a port in this list is implicitly the port number
     fn ports(&self) -> &[PhysicalPort];
 
     /// Get mutable reference to all physical ports
+    ///
+    /// The index of a port in this list is implicitly the port number
     fn ports_mut(&mut self) -> &mut [PhysicalPort];
 
     /// Get a physical port by port number
-    fn port(&self, port: PortId) -> &PhysicalPort {
-        self.ports().get(port).unwrap()
+    fn port(&self, port: PortNumber) -> &PhysicalPort {
+        &self.ports()[port]
     }
 
     /// Get a mutable reference to a physical port by port number
-    fn port_mut(&mut self, port: PortId) -> &mut PhysicalPort {
-        self.ports_mut().get_mut(port).unwrap()
+    fn port_mut(&mut self, port: PortNumber) -> &mut PhysicalPort {
+        &mut self.ports_mut()[port]
     }
 
     /// Get port id of a free port
-    fn get_free_port(&self) -> Option<PortId> {
-        self.ports().iter().position(|port| !port.is_connected())
+    fn get_free_port(&self) -> Option<PortNumber> {
+        self.ports().iter().position(|port| !port.is_connected()).map(|port| PortNumber::from(port))
     }
 
     /// Get port id for a connection

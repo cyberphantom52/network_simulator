@@ -1,4 +1,3 @@
-use rand::Rng;
 use std::fmt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -6,9 +5,7 @@ pub struct MacAddr([u8; 6]);
 
 impl MacAddr {
     pub fn new() -> Self {
-        let mut rng = rand::thread_rng();
-        let mac = rng.gen::<[u8; 6]>();
-        MacAddr(mac)
+        MacAddr(rand::random())
     }
 
     pub fn from(str: &str) -> Self {
