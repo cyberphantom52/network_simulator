@@ -3,9 +3,9 @@ use self::{datalink::MacAddr, physical::{physical::PhysicalLayer, port::Connecti
 pub mod datalink;
 pub mod physical;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 /// Identifier for a device on the network
-pub enum Identifier {
+pub(crate) enum Identifier {
     Name(String),
     MacAddr(MacAddr)
 }
