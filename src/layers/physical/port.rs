@@ -1,4 +1,3 @@
-use crate::layers::datalink::Frame;
 use rand::{distributions::Alphanumeric, Rng};
 use tokio::sync::{
     broadcast::{self, Receiver, Sender},
@@ -34,8 +33,8 @@ impl From<usize> for PortNumber {
 #[derive(Debug)]
 pub struct Connection {
     id: String,
-    pub outbound: Sender<Frame>,
-    pub inbound: RwLock<Receiver<Frame>>,
+    pub outbound: Sender<u8>,
+    pub inbound: RwLock<Receiver<u8>>,
 }
 
 impl Clone for Connection {
@@ -67,11 +66,11 @@ impl Connection {
         &self.id
     }
 
-    pub fn send(&self, packet: Frame) {
-        self.outbound.send(packet).unwrap();
+    pub fn send(&self, byte: u8) {
+        self.outbound.send(byte).unwrap();
     }
 
-    pub fn recv(&self) -> Option<Frame> {
+    pub fn recv(&self) -> Option<u8> {
         self.inbound.blocking_write().try_recv().ok()
     }
 }
@@ -114,13 +113,13 @@ impl PhysicalPort {
         self.connection.is_some()
     }
 
-    pub fn send(&self, packet: Frame) {
+    pub fn send(&self, byte: u8) {
         assert!(self.is_connected());
 
-        self.connection.as_ref().unwrap().send(packet);
+        self.connection.as_ref().unwrap().send(byte);
     }
 
-    pub fn recv(&self) -> Option<Frame> {
+    pub fn recv(&self) -> Option<u8> {
         assert!(self.is_connected());
 
         self.connection.as_ref().unwrap().recv()

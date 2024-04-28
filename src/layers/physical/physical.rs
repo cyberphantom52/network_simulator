@@ -1,7 +1,7 @@
 use super::port::{PhysicalPort, PortNumber};
 use super::ConnectionMap;
 use crate::layers::ConnectionTarget;
-use crate::layers::{datalink::Frame, Identifier};
+use crate::layers::Identifier;
 
 pub trait PhysicalLayer {
     /// Get the ID of the device
@@ -10,20 +10,23 @@ pub trait PhysicalLayer {
     /// Send a frame
     ///
     /// If `None` is passed as the port, the frame is broadcasted to all connected ports
-    fn tansmit(&self, frame: Frame, port: Option<PortNumber>) {
-        if let Some(port) = port {
-            self.port(port).send(frame);
-        } else {
-            for port in self.ports() {
-                if port.is_connected() {
-                    port.send(frame.clone());
+    fn tansmit(&self, frame: Vec<u8>, port: Option<PortNumber>) {
+        for byte in frame {
+            match port {
+                Some(port) => self.port(port).send(byte),
+                None => {
+                    for port in self.ports() {
+                        if port.is_connected() {
+                            port.send(byte);
+                        }
+                    }
                 }
             }
         }
     }
 
     /// Receive a frame from a random connected port
-    fn receive(&self) -> Option<Frame> {
+    fn receive(&self) -> Option<u8> {
         use rand::seq::IteratorRandom;
         self.ports()
             .iter()
@@ -60,7 +63,10 @@ pub trait PhysicalLayer {
 
     /// Get port id of a free port
     fn get_free_port(&self) -> Option<PortNumber> {
-        self.ports().iter().position(|port| !port.is_connected()).map(|port| PortNumber::from(port))
+        self.ports()
+            .iter()
+            .position(|port| !port.is_connected())
+            .map(|port| PortNumber::from(port))
     }
 
     /// Get port id for a connection
@@ -126,12 +132,16 @@ pub trait PhysicalLayer {
                 }
             }
             ConnectionTarget::Connection(connection) => {
-                let port_id = self.conn_map().get::<String>(&connection.id().into()).copied();
+                let port_id = self
+                    .conn_map()
+                    .get::<String>(&connection.id().into())
+                    .copied();
                 match port_id {
                     Some(port_id) => {
                         let port = self.port_mut(port_id);
                         port.disconnect();
-                        self.conn_map_mut().remove::<String>(&connection.id().into());
+                        self.conn_map_mut()
+                            .remove::<String>(&connection.id().into());
                     }
                     None => {
                         panic!("Connection not found");
