@@ -1,3 +1,4 @@
+use crate::layers::datalink::MacAddr;
 use rand::{distributions::Alphanumeric, Rng};
 use tokio::sync::{
     broadcast::{self, Receiver, Sender},
@@ -10,7 +11,7 @@ use tokio::sync::{
 #[derive(Debug, Clone, Copy)]
 pub struct PortNumber(u8);
 
-impl Index<PortNumber> for [PhysicalPort] {
+impl std::ops::Index<PortNumber> for [PhysicalPort] {
     type Output = PhysicalPort;
 
     fn index(&self, index: PortNumber) -> &Self::Output {
@@ -18,7 +19,7 @@ impl Index<PortNumber> for [PhysicalPort] {
     }
 }
 
-impl IndexMut<PortNumber> for [PhysicalPort] {
+impl std::ops::IndexMut<PortNumber> for [PhysicalPort] {
     fn index_mut(&mut self, index: PortNumber) -> &mut Self::Output {
         &mut self[index.0 as usize]
     }
@@ -75,8 +76,7 @@ impl Connection {
     }
 }
 
-#[derive(Debug)]
-pub struct PhysicalPort {
+pub(crate) struct PhysicalPort {
     mac: Option<MacAddr>,
     connection: Option<Connection>,
 }
@@ -123,5 +123,9 @@ impl PhysicalPort {
         assert!(self.is_connected());
 
         self.connection.as_ref().unwrap().recv()
+    }
+
+    pub fn mac(&self) -> Option<&MacAddr> {
+        self.mac.as_ref()
     }
 }

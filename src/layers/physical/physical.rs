@@ -1,9 +1,8 @@
-use super::port::{PhysicalPort, PortNumber};
 use super::ConnectionMap;
-use crate::layers::ConnectionTarget;
-use crate::layers::Identifier;
+use super::port::{PhysicalPort, PortNumber};
+use crate::layers::{ConnectionTarget, Identifier};
 
-pub trait PhysicalLayer {
+pub(crate) trait PhysicalLayer {
     /// Get the ID of the device
     fn id(&self) -> &Identifier;
 
@@ -132,8 +131,7 @@ pub trait PhysicalLayer {
                 }
             }
             ConnectionTarget::Connection(connection) => {
-                let port_id = self
-                    .conn_map()
+                let port_id = self.conn_map()
                     .get::<String>(&connection.id().into())
                     .copied();
                 match port_id {

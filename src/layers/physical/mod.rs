@@ -1,6 +1,5 @@
 use self::port::PortNumber;
 use std::collections::HashMap;
-
 pub mod physical;
 pub mod port;
 
