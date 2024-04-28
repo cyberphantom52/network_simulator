@@ -8,10 +8,29 @@ pub trait PhysicalLayer {
     fn id(&self) -> &Identifier;
 
     /// Send a frame
-    fn send(&self, frame: Frame, port: Option<PortNumber>);
+    ///
+    /// If `None` is passed as the port, the frame is broadcasted to all connected ports
+    fn tansmit(&self, frame: Frame, port: Option<PortNumber>) {
+        if let Some(port) = port {
+            self.port(port).send(frame);
+        } else {
+            for port in self.ports() {
+                if port.is_connected() {
+                    port.send(frame.clone());
+                }
+            }
+        }
+    }
 
-    /// Receive a frame
-    fn receive(&self);
+    /// Receive a frame from a random connected port
+    fn receive(&self) -> Option<Frame> {
+        use rand::seq::IteratorRandom;
+        self.ports()
+            .iter()
+            .filter(|port| port.is_connected())
+            .choose(&mut rand::thread_rng())
+            .and_then(|port| port.recv())
+    }
 
     /// Get a mappping of physical connections
     fn conn_map(&self) -> &ConnectionMap;
