@@ -1,4 +1,15 @@
 mod header;
+mod datalink;
+mod access_control;
+mod error_control;
+mod flow_control;
+mod logical_link_control;
+
+use access_control::AccessControl;
+use error_control::ErrorControl;
+use flow_control::FlowControl;
+use logical_link_control::LogicalLinkControl;
+pub use datalink::DataLinkLayer;
 
 #[derive(Debug, Clone)]
 pub struct MacAddr([u8; 6]);
