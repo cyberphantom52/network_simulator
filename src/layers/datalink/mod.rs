@@ -1,3 +1,5 @@
+mod header;
+
 #[derive(Debug, Clone)]
 pub struct MacAddr([u8; 6]);
 
