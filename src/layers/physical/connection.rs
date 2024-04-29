@@ -4,12 +4,14 @@ use tokio::sync::{
     RwLock,
 };
 
+use crate::layers::Identifier;
+
 /// Represents a connection between two or more interfaces.
 ///
 /// The connection can be point-to-point or broadcast depending on the number of
 /// interfaces connected to it.
 pub(crate) struct Connection {
-    id: String,
+    id: Identifier,
     sender: Sender<u8>,
     receiver: RwLock<Receiver<u8>>,
 }
@@ -33,7 +35,7 @@ impl Default for Connection {
             .map(char::from)
             .collect::<String>();
         Self {
-            id: format!("Connection-{}", id),
+            id: Identifier::Name(id),
             sender,
             receiver: RwLock::new(receiver),
         }
@@ -42,7 +44,7 @@ impl Default for Connection {
 
 impl Connection {
     /// Returns the unique identifier of the connection.
-    pub fn id(&self) -> &str {
+    pub fn id(&self) -> &Identifier {
         &self.id
     }
 

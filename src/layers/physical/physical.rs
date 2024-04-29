@@ -133,14 +133,14 @@ pub trait PhysicalLayer {
             }
             ConnectionEndpoint::Connection(connection) => {
                 let interface_id = self.conn_map()
-                    .get::<String>(&connection.id().into())
+                    .get::<String>(&connection.id().to_string())
                     .copied();
                 match interface_id {
                     Some(interface_id) => {
                         let interface = self.interface_mut(interface_id);
                         interface.disconnect();
                         self.conn_map_mut()
-                            .remove::<String>(&connection.id().into());
+                            .remove::<String>(&connection.id().to_string());
                     }
                     None => {
                         panic!("Connection not found");

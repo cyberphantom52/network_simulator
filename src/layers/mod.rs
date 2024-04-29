@@ -4,7 +4,8 @@ mod datalink;
 use physical::PhysicalLayer;
 use datalink::DataLinkLayer;
 
-pub(self) enum Identifier {
+#[derive(Debug, Clone)]
+pub enum Identifier {
     Name(String),
 }
 
