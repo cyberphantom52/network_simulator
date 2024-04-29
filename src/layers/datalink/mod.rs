@@ -1,6 +1,9 @@
 pub mod datalink;
 use std::fmt;
 
+const FLAG: u8 = 0x7E;
+const ESCAPE: u8 = 0x7D;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MacAddr([u8; 6]);
 

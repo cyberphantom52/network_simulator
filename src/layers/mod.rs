@@ -19,7 +19,7 @@ impl ToString for Identifier {
     }
 }
 
-enum ConnectionTarget<'a> {
+pub enum ConnectionTarget<'a> {
     Device(Box<&'a mut dyn PhysicalLayer>),
     Connection(&'a Connection),
 }

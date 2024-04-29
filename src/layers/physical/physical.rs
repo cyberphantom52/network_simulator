@@ -69,7 +69,7 @@ pub(crate) trait PhysicalLayer {
     }
 
     /// Get port id for a connection
-    fn get_port_for_connection(&self, other: &Identifier) -> Option<PortId> {
+    fn get_port_for_connection(&self, other: &Identifier) -> Option<PortNumber> {
         self.conn_map().get(&other.to_string()).copied()
     }
 
