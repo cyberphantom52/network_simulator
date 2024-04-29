@@ -1,3 +1,4 @@
+use crate::layers::datalink::MacAddr;
 use super::connection::Connection;
 
 pub(crate) enum Endpoint<'a> {
@@ -9,12 +10,14 @@ pub(crate) enum Endpoint<'a> {
 ///
 /// This is effectively an abstraction of a network interface card (NIC).
 pub(crate) struct Interface {
+    mac_addr: Option<MacAddr>,
     connection: Option<Connection>,
 }
 
 impl Default for Interface {
     fn default() -> Self {
         Interface {
+            mac_addr: Some(MacAddr::default()),
             connection: None,
         }
     }
@@ -63,5 +66,9 @@ impl Interface {
         assert!(self.is_connected());
 
         self.connection.as_ref().unwrap().recv().ok()
+    }
+
+    pub fn mac_addr(&self) -> Option<&MacAddr> {
+        self.mac_addr.as_ref()
     }
 }
