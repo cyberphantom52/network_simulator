@@ -1,6 +1,8 @@
 mod physical;
 mod datalink;
 
+use physical::PhysicalLayer;
+
 pub(self) enum Identifier {
     Name(String),
 }

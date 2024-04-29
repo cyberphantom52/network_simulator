@@ -2,7 +2,7 @@ use crate::layers::Identifier;
 use super::interface::{Endpoint, Interface};
 use super::{ConnectionEndpoint, ConnectionMap};
 
-pub(crate) trait PhysicalLayer {
+pub trait PhysicalLayer {
     /// Get the ID of the device
     fn id(&self) -> &Identifier;
 
