@@ -1,4 +1,4 @@
-use self::physical::{physical::PhysicalLayer, port::Connection};
+use self::{datalink::MacAddr, physical::{physical::PhysicalLayer, port::Connection}};
 
 pub mod datalink;
 pub mod physical;
@@ -7,12 +7,14 @@ pub mod physical;
 /// Identifier for a device on the network
 pub enum Identifier {
     Name(String),
+    MacAddr(MacAddr)
 }
 
 impl ToString for Identifier {
     fn to_string(&self) -> String {
         match self {
             Identifier::Name(name) => name.clone(),
+            Identifier::MacAddr(mac) => mac.to_string(),
         }
     }
 }
