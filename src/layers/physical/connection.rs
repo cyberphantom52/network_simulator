@@ -60,4 +60,8 @@ impl Connection {
         // TODO: Handle the actual error variants.
         self.receiver.blocking_write().try_recv()
     }
+
+    pub fn is_idle(&self) -> bool {
+        self.receiver.blocking_read().is_empty()
+    }
 }

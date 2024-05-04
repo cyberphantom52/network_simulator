@@ -9,15 +9,13 @@ pub trait PhysicalLayer {
     /// Send a frame
     ///
     /// If `None` is passed as the inteface number, the frame is broadcasted to all connected interfaces
-    fn tansmit(&self, frame: Vec<u8>, interface: Option<usize>) {
-        for byte in frame {
-            match interface {
-                Some(interface) => self.interface(interface).send(byte),
-                None => {
-                    for interface in self.interfaces() {
-                        if interface.is_connected() {
-                            interface.send(byte);
-                        }
+    fn transmit(&self, byte: u8, interface: Option<usize>) {
+        match interface {
+            Some(interface) => self.interface(interface).send(byte),
+            None => {
+                for interface in self.interfaces() {
+                    if interface.is_connected() {
+                        interface.send(byte);
                     }
                 }
             }
@@ -147,6 +145,14 @@ pub trait PhysicalLayer {
                     }
                 }
             }
+        }
+    }
+
+    fn is_channel_idle(&self, number: usize) -> bool {
+        let interface = self.interface(number);
+        match interface.connection() {
+            Some(connection) => connection.is_idle(),
+            None => false,
         }
     }
 }
