@@ -71,4 +71,9 @@ impl Interface {
     pub fn mac_addr(&self) -> Option<&MacAddr> {
         self.mac_addr.as_ref()
     }
+
+    pub fn connection(&self) -> Option<&Connection> {
+        self.connection.as_ref()
+    }
+
 }
