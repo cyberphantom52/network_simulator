@@ -4,7 +4,7 @@ use super::link::Link;
 /// Represents an interface that can be connected to another interface or a connection.
 ///
 /// This is effectively an abstraction of a network interface card (NIC).
-pub(crate) struct Interface {
+pub struct Interface {
     mac_addr: Option<MacAddr>,
     connection: Option<Link>,
 }
