@@ -6,18 +6,16 @@ pub trait PhysicalLayer {
     /// Get the ID of the device
     fn id(&self) -> &Identifier;
 
-    /// Send a frame
+    /// Send a byte through the channel
     ///
-    /// If `None` is passed as the inteface number, the frame is broadcasted to all connected interfaces
-    fn tansmit(&self, frame: Vec<u8>, interface: Option<usize>) {
-        for byte in frame {
-            match interface {
-                Some(interface) => self.interface(interface).send(byte),
-                None => {
-                    for interface in self.interfaces() {
-                        if interface.is_connected() {
-                            interface.send(byte);
-                        }
+    /// If `None` is passed as the inteface number, the byte is broadcasted to all connected interfaces
+    fn tansmit(&self, byte: u8, interface: Option<usize>) {
+        match interface {
+            Some(interface) => self.interface(interface).send(byte),
+            None => {
+                for interface in self.interfaces() {
+                    if interface.is_connected() {
+                        interface.send(byte);
                     }
                 }
             }
