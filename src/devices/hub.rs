@@ -59,18 +59,15 @@ impl PhysicalLayer for Hub {
         self.interfaces()
             .iter()
             .enumerate()
-            .filter(|(index, _)| Some(*index) != exclude)
+            .filter(|(index, interface)| interface.is_connected() && exclude != Some(*index))
             .for_each(|(_, interface)| {
-                if interface.is_connected() {
-                    interface.send(byte);
-                }
+                interface.send(byte);
             });
     }
 }
 
-
 impl Hub {
-    pub fn main_loop(&mut self) -> ! {
+    pub async fn main_loop(&mut self) -> ! {
         loop {
             if let Some((byte, port)) = self.receive(None) {
                 self.transmit(byte, Some(port));
