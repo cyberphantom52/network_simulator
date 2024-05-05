@@ -9,7 +9,7 @@ pub trait PhysicalLayer {
     /// Send a byte through the channel
     ///
     /// If `None` is passed as the inteface number, the byte is broadcasted to all connected interfaces
-    fn tansmit(&self, byte: u8, interface: Option<usize>) {
+    fn transmit(&self, byte: u8, interface: Option<usize>) {
         match interface {
             Some(interface) => self.interface(interface).send(byte),
             None => {
