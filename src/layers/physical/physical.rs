@@ -119,3 +119,118 @@ pub trait PhysicalLayer {
         }
     }
 }
+
+
+mod tests {
+    use super::*;
+
+    struct TestPhysicalLayer {
+        id: Identifier,
+        interfaces: [Interface; 2],
+        conn_map: ConnectionMap,
+    }
+
+    impl TestPhysicalLayer {
+        fn new(id: Identifier) -> Self {
+            Self {
+                id,
+                interfaces: Default::default(),
+                conn_map: Default::default(),
+            }
+        }
+    }
+
+    impl PhysicalLayer for TestPhysicalLayer {
+        fn id(&self) -> &Identifier {
+            &self.id
+        }
+
+        fn conn_map(&self) -> &ConnectionMap {
+            &self.conn_map
+        }
+
+        fn conn_map_mut(&mut self) -> &mut ConnectionMap {
+            &mut self.conn_map
+        }
+
+        fn interfaces(&self) -> &[Interface] {
+            &self.interfaces
+        }
+
+        fn interfaces_mut(&mut self) -> &mut [Interface] {
+            &mut self.interfaces
+        }
+    }
+
+    #[test]
+    fn test_connect_disconnect() {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.id()), Some(0));
+        assert_eq!(physical_layer2.get_interface_for_connection(&physical_layer1.id()), Some(0));
+
+        physical_layer1.disconnect(Box::new(&mut physical_layer2));
+        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.id()), None);
+        assert_eq!(physical_layer2.get_interface_for_connection(&physical_layer1.id()), None);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_connect_no_free_interface() {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_disconnect_no_connection()
+    {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+
+        physical_layer1.disconnect(Box::new(&mut physical_layer2));
+    }
+
+    #[test]
+    fn test_transmit() {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+
+        physical_layer1.transmit(0x01, None);
+        physical_layer2.transmit(0x02, None);
+        assert_eq!(physical_layer2.receive(Some(0)), Some((0x01, 0)));
+        assert_eq!(physical_layer1.receive(Some(0)), Some((0x02, 0)));
+    }
+
+    #[test]
+    fn test_receive_no_data() {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+        assert_eq!(physical_layer1.receive(Some(0)), None);
+    }
+
+    #[test]
+    fn test_transmit_multiple_connections() {
+        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
+        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer3 = TestPhysicalLayer::new(Identifier::Name("test3".to_string()));
+
+        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(Box::new(&mut physical_layer3));
+        physical_layer2.transmit(0x01, Some(0));
+        physical_layer3.transmit(0x02, Some(0));
+
+        assert_eq!(physical_layer1.receive(Some(0)), Some((0x01, 0)));
+        assert_eq!(physical_layer1.receive(Some(1)), Some((0x02, 1)));
+    }
+}
