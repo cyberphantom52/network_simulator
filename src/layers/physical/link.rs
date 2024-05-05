@@ -32,3 +32,15 @@ impl Link {
         self.rx.try_recv()
     }
 }
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_link() {
+        let (a, b) = Link::connection();
+        a.send(42).unwrap();
+        assert_eq!(a.recv().is_err(), true);
+        assert_eq!(b.recv().unwrap(), 42);
+    }
+}
