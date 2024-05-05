@@ -22,14 +22,17 @@ pub trait PhysicalLayer {
         }
     }
 
-    /// Receive a frame from a random connected interface
-    fn receive(&self) -> Option<u8> {
+    /// Receive a byte from a random connected interface
+    ///
+    /// Also returns the interface number from which the byte was received
+    fn receive(&self) -> Option<(u8, usize)> {
         use rand::seq::IteratorRandom;
         self.interfaces()
             .iter()
-            .filter(|inteface| inteface.is_connected())
+            .enumerate()
+            .filter(|(_, inteface)| inteface.is_connected())
             .choose(&mut rand::thread_rng())
-            .and_then(|inteface| inteface.recv())
+            .and_then(|(index, inteface)| inteface.recv().map(|byte| (byte, index)))
     }
 
     /// Get a mappping of physical connections
