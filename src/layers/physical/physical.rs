@@ -1,6 +1,6 @@
 use crate::layers::Identifier;
-use super::interface::{Endpoint, Interface};
-use super::{ConnectionEndpoint, ConnectionMap};
+use super::interface::Interface;
+use super::ConnectionMap;
 
 pub trait PhysicalLayer {
     /// Get the ID of the device
@@ -71,79 +71,39 @@ pub trait PhysicalLayer {
     }
 
     /// Connect to a device
-    fn connect(&mut self, other: ConnectionEndpoint) {
-        match other {
-            ConnectionEndpoint::Device(device) => {
-                let interface = self.availabe_interface();
-                let other_interface = device.availabe_interface();
+    fn connect(&mut self, other: Box<&mut dyn PhysicalLayer>) {
+        let interface = self.availabe_interface();
+        let other_interface = other.availabe_interface();
 
-                match (interface, other_interface) {
-                    (Some(interface), Some(other_interface)) => {
-                        self.interface_mut(interface).connect(Endpoint::Interface(device.interface_mut(other_interface)));
-                        self.conn_map_mut().insert(device.id().to_string(), interface);
-                        device.conn_map_mut().insert(self.id().to_string(), other_interface);
-                    }
-                    _ => {
-                        panic!("No free interface available");
-                    }
-                }
+        match (interface, other_interface) {
+            (Some(interface), Some(other_interface)) => {
+                self.interface_mut(interface).connect(other.interface_mut(other_interface));
+                self.conn_map_mut().insert(other.id().to_string(), interface);
+                other.conn_map_mut().insert(self.id().to_string(), other_interface);
             }
-            ConnectionEndpoint::Connection(connection) => {
-                let interface_id = self.availabe_interface();
-
-                match interface_id {
-                    Some(interface_id) => {
-                        let conn_id = connection.id().to_string();
-                        self.interface_mut(interface_id)
-                            .connect(Endpoint::Connection(connection));
-                        self.conn_map_mut()
-                            .insert(conn_id, interface_id);
-                    }
-                    None => {
-                        panic!("No free interface available");
-                    }
-                }
+            _ => {
+                panic!("No free interface available");
             }
         }
     }
 
     /// Disconnect from a device
-    fn disconnect(&mut self, other: ConnectionEndpoint) {
-        match other {
-            ConnectionEndpoint::Device(device) => {
-                let interface_id = self.get_interface_for_connection(device.id());
-                let other_interface_id = device.get_interface_for_connection(self.id());
+    fn disconnect(&mut self, other: Box<&mut dyn PhysicalLayer>) {
+        let interface_id = self.get_interface_for_connection(other.id());
+        let other_interface_id = other.get_interface_for_connection(self.id());
 
-                match (interface_id, other_interface_id) {
-                    (Some(interface_id), Some(other_interface_id)) => {
-                        let interface = self.interface_mut(interface_id);
-                        let other_interface = device.interface_mut(other_interface_id);
-                        interface.disconnect();
-                        other_interface.disconnect();
+        match (interface_id, other_interface_id) {
+            (Some(interface_id), Some(other_interface_id)) => {
+                let interface = self.interface_mut(interface_id);
+                let other_interface = other.interface_mut(other_interface_id);
+                interface.disconnect();
+                other_interface.disconnect();
 
-                        self.conn_map_mut().remove::<String>(&device.id().to_string());
-                        device.conn_map_mut().remove::<String>(&self.id().to_string());
-                    }
-                    _ => {
-                        panic!("Connection not found");
-                    }
-                }
+                self.conn_map_mut().remove::<String>(&other.id().to_string());
+                other.conn_map_mut().remove::<String>(&self.id().to_string());
             }
-            ConnectionEndpoint::Connection(connection) => {
-                let interface_id = self.conn_map()
-                    .get::<String>(&connection.id().to_string())
-                    .copied();
-                match interface_id {
-                    Some(interface_id) => {
-                        let interface = self.interface_mut(interface_id);
-                        interface.disconnect();
-                        self.conn_map_mut()
-                            .remove::<String>(&connection.id().to_string());
-                    }
-                    None => {
-                        panic!("Connection not found");
-                    }
-                }
+            _ => {
+                panic!("Connection not found");
             }
         }
     }

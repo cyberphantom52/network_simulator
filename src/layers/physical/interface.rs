@@ -1,17 +1,12 @@
 use crate::layers::datalink::MacAddr;
-use super::connection::Connection;
-
-pub(crate) enum Endpoint<'a> {
-    Interface(&'a mut Interface),
-    Connection(Connection),
-}
+use super::link::Link;
 
 /// Represents an interface that can be connected to another interface or a connection.
 ///
 /// This is effectively an abstraction of a network interface card (NIC).
 pub(crate) struct Interface {
     mac_addr: Option<MacAddr>,
-    connection: Option<Connection>,
+    connection: Option<Link>,
 }
 
 impl Default for Interface {
@@ -25,21 +20,13 @@ impl Default for Interface {
 
 impl Interface {
     /// Connects the interface to another interface or a connection.
-    pub fn connect(&mut self, other: Endpoint) {
+    pub fn connect(&mut self, other: &mut Interface) {
         assert!(!self.is_connected());
+        assert!(!other.is_connected());
 
-        match other {
-            Endpoint::Interface(interface) => {
-                assert!(!interface.is_connected());
-
-                let connection = Connection::default();
-                self.connection = Some(connection.clone());
-                interface.connection = Some(connection);
-            }
-            Endpoint::Connection(connection) => {
-                self.connection = Some(connection);
-            }
-        }
+        let (end, end2) = Link::connection();
+        self.connection = Some(end);
+        other.connection = Some(end2);
     }
 
     /// Disconnects the interface by dropping it's end of the connection.
