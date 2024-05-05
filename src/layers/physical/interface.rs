@@ -59,3 +59,33 @@ impl Interface {
         self.mac_addr.as_ref()
     }
 }
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_interface() {
+        let mut iface1 = Interface::default();
+        let mut iface2 = Interface::default();
+
+        assert!(!iface1.is_connected());
+        assert!(!iface2.is_connected());
+
+        iface1.connect(&mut iface2);
+
+        assert!(iface1.is_connected());
+        assert!(iface2.is_connected());
+
+        iface1.send(0x01);
+        iface2.send(0x02);
+
+        assert_eq!(iface2.recv(), Some(0x01));
+        assert_eq!(iface1.recv(), Some(0x02));
+
+        iface1.disconnect();
+        iface2.disconnect();
+
+        assert!(!iface1.is_connected());
+        assert!(!iface2.is_connected());
+    }
+}
