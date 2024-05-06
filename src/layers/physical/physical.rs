@@ -120,7 +120,7 @@ pub trait PhysicalLayer {
     }
 }
 
-
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -131,9 +131,9 @@ mod tests {
     }
 
     impl TestPhysicalLayer {
-        fn new(id: Identifier) -> Self {
+        fn new(id: &str) -> Self {
             Self {
-                id,
+                id: Identifier::Name(id.to_string()),
                 interfaces: Default::default(),
                 conn_map: Default::default(),
             }
@@ -164,8 +164,8 @@ mod tests {
 
     #[test]
     fn test_connect_disconnect() {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
 
         physical_layer1.connect(Box::new(&mut physical_layer2));
         assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.id()), Some(0));
@@ -179,8 +179,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_connect_no_free_interface() {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
 
         physical_layer1.connect(Box::new(&mut physical_layer2));
         physical_layer1.connect(Box::new(&mut physical_layer2));
@@ -191,16 +191,16 @@ mod tests {
     #[should_panic]
     fn test_disconnect_no_connection()
     {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
 
         physical_layer1.disconnect(Box::new(&mut physical_layer2));
     }
 
     #[test]
     fn test_transmit() {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
 
         physical_layer1.connect(Box::new(&mut physical_layer2));
 
@@ -212,8 +212,8 @@ mod tests {
 
     #[test]
     fn test_receive_no_data() {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
 
         physical_layer1.connect(Box::new(&mut physical_layer2));
         assert_eq!(physical_layer1.receive(Some(0)), None);
@@ -221,9 +221,9 @@ mod tests {
 
     #[test]
     fn test_transmit_multiple_connections() {
-        let mut physical_layer1 = TestPhysicalLayer::new(Identifier::Name("test1".to_string()));
-        let mut physical_layer2 = TestPhysicalLayer::new(Identifier::Name("test2".to_string()));
-        let mut physical_layer3 = TestPhysicalLayer::new(Identifier::Name("test3".to_string()));
+        let mut physical_layer1 = TestPhysicalLayer::new("test1");
+        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let mut physical_layer3 = TestPhysicalLayer::new("test3");
 
         physical_layer1.connect(Box::new(&mut physical_layer2));
         physical_layer1.connect(Box::new(&mut physical_layer3));

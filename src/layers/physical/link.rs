@@ -33,6 +33,7 @@ impl Link {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
