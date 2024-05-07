@@ -1,4 +1,4 @@
-use crate::layers::{ConnectionMap, Identifier, Interface, PhysicalLayer};
+use crate::{layers::{ConnectionMap, Identifier, Interface, PhysicalLayer}, utils::Simulateable};
 use rand::{distributions::Alphanumeric, Rng};
 
 pub struct Hub {
@@ -66,12 +66,10 @@ impl PhysicalLayer for Hub {
     }
 }
 
-impl Hub {
-    pub async fn main_loop(&mut self) -> ! {
-        loop {
-            if let Some((byte, port)) = self.receive(None) {
-                self.transmit(byte, Some(port));
-            }
+impl Simulateable for Hub {
+    fn tick(&mut self) {
+        if let Some((byte, port)) = self.receive(None) {
+            self.transmit(byte, Some(port));
         }
     }
 }
