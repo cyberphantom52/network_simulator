@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use crate::layers::Identifier;
 use super::interface::Interface;
 use super::ConnectionMap;
@@ -82,7 +84,8 @@ pub trait PhysicalLayer {
     }
 
     /// Connect to a device
-    fn connect(&mut self, other: Box<&mut dyn PhysicalLayer>) {
+    fn connect(&mut self, other: Arc<Mutex<impl PhysicalLayer>>) {
+        let mut other = other.lock().unwrap();
         let interface = self.availabe_interface();
         let other_interface = other.availabe_interface();
 
@@ -99,7 +102,8 @@ pub trait PhysicalLayer {
     }
 
     /// Disconnect from a device
-    fn disconnect(&mut self, other: Box<&mut dyn PhysicalLayer>) {
+    fn disconnect(&mut self, other: Arc<Mutex<impl PhysicalLayer>>) {
+        let mut other = other.lock().unwrap();
         let interface_id = self.get_interface_for_connection(other.id());
         let other_interface_id = other.get_interface_for_connection(self.id());
 
@@ -165,26 +169,26 @@ mod tests {
     #[test]
     fn test_connect_disconnect() {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
 
-        physical_layer1.connect(Box::new(&mut physical_layer2));
-        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.id()), Some(0));
-        assert_eq!(physical_layer2.get_interface_for_connection(&physical_layer1.id()), Some(0));
+        physical_layer1.connect(physical_layer2.clone());
+        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.lock().unwrap().id()), Some(0));
+        assert_eq!(physical_layer2.lock().unwrap().get_interface_for_connection(&physical_layer1.id()), Some(0));
 
-        physical_layer1.disconnect(Box::new(&mut physical_layer2));
-        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.id()), None);
-        assert_eq!(physical_layer2.get_interface_for_connection(&physical_layer1.id()), None);
+        physical_layer1.disconnect(physical_layer2.clone());
+        assert_eq!(physical_layer1.get_interface_for_connection(&physical_layer2.lock().unwrap().id()), None);
+        assert_eq!(physical_layer2.lock().unwrap().get_interface_for_connection(&physical_layer1.id()), None);
     }
 
     #[test]
     #[should_panic]
     fn test_connect_no_free_interface() {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
 
-        physical_layer1.connect(Box::new(&mut physical_layer2));
-        physical_layer1.connect(Box::new(&mut physical_layer2));
-        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(physical_layer2.clone());
+        physical_layer1.connect(physical_layer2.clone());
+        physical_layer1.connect(physical_layer2.clone());
     }
 
     #[test]
@@ -192,43 +196,43 @@ mod tests {
     fn test_disconnect_no_connection()
     {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
 
-        physical_layer1.disconnect(Box::new(&mut physical_layer2));
+        physical_layer1.disconnect(physical_layer2.clone());
     }
 
     #[test]
     fn test_transmit() {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
 
-        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(physical_layer2.clone());
 
         physical_layer1.transmit(0x01, None);
-        physical_layer2.transmit(0x02, None);
-        assert_eq!(physical_layer2.receive(Some(0)), Some((0x01, 0)));
+        physical_layer2.lock().unwrap().transmit(0x02, None);
+        assert_eq!(physical_layer2.lock().unwrap().receive(Some(0)), Some((0x01, 0)));
         assert_eq!(physical_layer1.receive(Some(0)), Some((0x02, 0)));
     }
 
     #[test]
     fn test_receive_no_data() {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
 
-        physical_layer1.connect(Box::new(&mut physical_layer2));
+        physical_layer1.connect(physical_layer2.clone());
         assert_eq!(physical_layer1.receive(Some(0)), None);
     }
 
     #[test]
     fn test_transmit_multiple_connections() {
         let mut physical_layer1 = TestPhysicalLayer::new("test1");
-        let mut physical_layer2 = TestPhysicalLayer::new("test2");
-        let mut physical_layer3 = TestPhysicalLayer::new("test3");
+        let physical_layer2 = Arc::new(Mutex::new(TestPhysicalLayer::new("test2")));
+        let physical_layer3 = Arc::new(Mutex::new(TestPhysicalLayer::new("test3")));
 
-        physical_layer1.connect(Box::new(&mut physical_layer2));
-        physical_layer1.connect(Box::new(&mut physical_layer3));
-        physical_layer2.transmit(0x01, Some(0));
-        physical_layer3.transmit(0x02, Some(0));
+        physical_layer1.connect(physical_layer2.clone());
+        physical_layer1.connect(physical_layer3.clone());
+        physical_layer2.lock().unwrap().transmit(0x01, Some(0));
+        physical_layer3.lock().unwrap().transmit(0x02, Some(0));
 
         assert_eq!(physical_layer1.receive(Some(0)), Some((0x01, 0)));
         assert_eq!(physical_layer1.receive(Some(1)), Some((0x02, 1)));
