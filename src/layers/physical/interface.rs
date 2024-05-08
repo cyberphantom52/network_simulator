@@ -43,10 +43,10 @@ impl Interface {
         self.connection.is_some()
     }
 
-    pub fn send(&self, byte: u8) {
+    pub async fn send(&self, byte: u8) {
         assert!(self.is_connected());
 
-        self.connection.as_ref().unwrap().send(byte).ok();
+        self.connection.as_ref().unwrap().send(byte).await.ok();
     }
 
     pub fn recv(&self) -> Option<u8> {
@@ -64,8 +64,8 @@ impl Interface {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_interface() {
+    #[tokio::test]
+    async fn test_interface() {
         let mut iface1 = Interface::default();
         let mut iface2 = Interface::default();
 
@@ -77,8 +77,8 @@ mod tests {
         assert!(iface1.is_connected());
         assert!(iface2.is_connected());
 
-        iface1.send(0x01);
-        iface2.send(0x02);
+        iface1.send(0x01).await;
+        iface2.send(0x02).await;
 
         assert_eq!(iface2.recv(), Some(0x01));
         assert_eq!(iface1.recv(), Some(0x02));

@@ -1,4 +1,7 @@
-use crate::{layers::{ConnectionMap, Identifier, Interface, PhysicalLayer}, utils::Simulateable};
+use crate::{
+    layers::{ConnectionMap, Identifier, Interface, PhysicalLayer},
+    utils::Simulateable,
+};
 use rand::{distributions::Alphanumeric, Rng};
 
 pub struct Hub {
@@ -44,7 +47,7 @@ impl PhysicalLayer for Hub {
     }
 
     /// Receive a byte from a random connected interface
-    fn receive(&self, _: Option<usize>) -> Option<(u8, usize)> {
+    async fn receive(&self, _: Option<usize>) -> Option<(u8, usize)> {
         use rand::seq::IteratorRandom;
         self.interfaces()
             .iter()
@@ -55,21 +58,23 @@ impl PhysicalLayer for Hub {
     }
 
     /// Broadcast a byte to all connected interfaces except the one with the given index
-    fn transmit(&self, byte: u8, exclude: Option<usize>) {
-        self.interfaces()
+    async fn transmit(&self, byte: u8, exclude: Option<usize>) {
+        for fut in self
+            .interfaces()
             .iter()
             .enumerate()
             .filter(|(index, interface)| interface.is_connected() && exclude != Some(*index))
-            .for_each(|(_, interface)| {
-                interface.send(byte);
-            });
+            .map(|(_, interface)| interface.send(byte))
+        {
+            fut.await;
+        }
     }
 }
 
 impl Simulateable for Hub {
-    fn tick(&mut self) {
-        if let Some((byte, port)) = self.receive(None) {
-            self.transmit(byte, Some(port));
+    async fn tick(&self) {
+        if let Some((byte, port)) = self.receive(None).await {
+            self.transmit(byte, Some(port)).await;
         }
     }
 }
