@@ -3,7 +3,7 @@
     http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html
     https://reveng.sourceforge.io/crc-catalogue/all.htm
 */
-pub(crate) const CRC32_MEF: CrcModel = CrcModel {
+pub const CRC32_MEF: CrcModel = CrcModel {
     initial: 0xFFFF_FFFF,
     final_xor: 0x0000_0000,
     polynomial: 0x741b8cd7,
@@ -19,10 +19,32 @@ pub struct CrcModel {
     reflect_output: bool,
 }
 
-pub(crate) fn calculate_crc(bytes: &[u8]) -> u32 {
-    let mut crc = CRC32_MEF.initial;
+impl CrcModel {
+    pub fn initial(&self) -> u32 {
+        self.initial
+    }
+
+    pub fn polynomial(&self) -> u32 {
+        self.polynomial
+    }
+
+    pub fn final_xor(&self) -> u32 {
+        self.final_xor
+    }
+
+    pub fn reflect_input(&self) -> bool {
+        self.reflect_input
+    }
+
+    pub fn reflect_output(&self) -> bool {
+        self.reflect_output
+    }
+}
+
+pub fn calculate_crc(bytes: &[u8]) -> u32 {
+    let mut crc = CRC32_MEF.initial();
     for &byte in bytes {
-        let data = match CRC32_MEF.reflect_input {
+        let data = match CRC32_MEF.reflect_input() {
             true => byte.reverse_bits(),
             false => byte,
         };
@@ -30,17 +52,17 @@ pub(crate) fn calculate_crc(bytes: &[u8]) -> u32 {
         crc ^= (data as u32) << 24;
         for _ in 0..8 {
             if crc & 0x8000_0000 != 0 {
-                crc = (crc << 1) ^ CRC32_MEF.polynomial;
+                crc = (crc << 1) ^ CRC32_MEF.polynomial();
             } else {
                 crc <<= 1;
             }
         }
     }
-    crc = match CRC32_MEF.reflect_output {
+    crc = match CRC32_MEF.reflect_output() {
         true => crc.reverse_bits(),
         false => crc,
     };
-    crc ^ CRC32_MEF.final_xor
+    crc ^ CRC32_MEF.final_xor()
 }
 
 #[cfg(test)]

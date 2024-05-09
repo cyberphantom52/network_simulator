@@ -1,4 +1,5 @@
 mod crc;
+pub use crc::CRC32_MEF;
 
 #[macro_export]
 macro_rules! arc_mutex {
