@@ -1,7 +1,8 @@
 use super::interface::Interface;
 use super::ConnectionMap;
 use crate::layers::Identifier;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub trait PhysicalLayer {
     /// Get the ID of the device
@@ -84,7 +85,7 @@ pub trait PhysicalLayer {
 
     /// Connect to a device
     async fn connect(&mut self, other: Arc<Mutex<impl PhysicalLayer>>) {
-        let mut other = other.lock().unwrap();
+        let mut other = other.lock().await;
         let interface = self.availabe_interface();
         let other_interface = other.availabe_interface();
 
@@ -102,7 +103,7 @@ pub trait PhysicalLayer {
 
     /// Disconnect from a device
     async fn disconnect(&mut self, other: Arc<Mutex<impl PhysicalLayer>>) {
-        let mut other = other.lock().unwrap();
+        let mut other = other.lock().await;
         let interface_id = self.get_interface_for_connection(other.id());
         let other_interface_id = other.get_interface_for_connection(self.id());
 
@@ -173,12 +174,12 @@ mod tests {
         let pl2 = arc_mutex!(TestPhysicalLayer::new("test2"));
 
         pl1.connect(pl2.clone()).await;
-        assert_eq!(pl1.get_interface_for_connection(&pl2.lock().unwrap().id()), Some(0));
-        assert_eq!(pl2.lock().unwrap().get_interface_for_connection(&pl1.id()), Some(0));
+        assert_eq!(pl1.get_interface_for_connection(&pl2.lock().await.id()), Some(0));
+        assert_eq!(pl2.lock().await.get_interface_for_connection(&pl1.id()), Some(0));
 
         pl1.disconnect(pl2.clone()).await;
-        assert_eq!(pl1.get_interface_for_connection(&pl2.lock().unwrap().id()),None);
-        assert_eq!(pl2.lock().unwrap().get_interface_for_connection(&pl1.id()),None);
+        assert_eq!(pl1.get_interface_for_connection(&pl2.lock().await.id()),None);
+        assert_eq!(pl2.lock().await.get_interface_for_connection(&pl1.id()),None);
     }
 
     #[tokio::test]
@@ -209,8 +210,8 @@ mod tests {
         physical_layer1.connect(physical_layer2.clone()).await;
 
         physical_layer1.transmit(0x01, None).await;
-        physical_layer2.lock().unwrap().transmit(0x02, None).await;
-        assert_eq!(physical_layer2.lock().unwrap().receive(Some(0)).await, Some((0x01, 0)));
+        physical_layer2.lock().await.transmit(0x02, None).await;
+        assert_eq!(physical_layer2.lock().await.receive(Some(0)).await, Some((0x01, 0)));
         assert_eq!(physical_layer1.receive(Some(0)).await, Some((0x02, 0)));
     }
 
@@ -231,8 +232,8 @@ mod tests {
 
         physical_layer1.connect(physical_layer2.clone()).await;
         physical_layer1.connect(physical_layer3.clone()).await;
-        physical_layer2.lock().unwrap().transmit(0x01, Some(0)).await;
-        physical_layer3.lock().unwrap().transmit(0x02, Some(0)).await;
+        physical_layer2.lock().await.transmit(0x01, Some(0)).await;
+        physical_layer3.lock().await.transmit(0x02, Some(0)).await;
 
         assert_eq!(physical_layer1.receive(Some(0)).await, Some((0x01, 0)));
         assert_eq!(physical_layer1.receive(Some(1)).await, Some((0x02, 1)));
