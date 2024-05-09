@@ -3,6 +3,7 @@ use crate::{
     layers::{ConnectionMap, Identifier, Interface, PhysicalLayer},
     utils::Simulateable,
 };
+use futures::{future::join_all, StreamExt};
 use rand::{distributions::Alphanumeric, Rng};
 
 const N_JUNC: usize = 5;
@@ -77,8 +78,6 @@ impl PhysicalLayer for Bus {
 
 impl Simulateable for Bus {
     async fn tick(&self) {
-        for junction in self.junctions.iter() {
-            junction.tick().await;
-        }
+        join_all(self.junctions.iter().map(|j| j.tick())).await;
     }
 }

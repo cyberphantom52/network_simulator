@@ -2,6 +2,7 @@ use crate::{
     layers::{ConnectionMap, Identifier, Interface, PhysicalLayer},
     utils::Simulateable,
 };
+use futures::{future::join_all, StreamExt};
 use rand::{distributions::Alphanumeric, Rng};
 
 pub struct Hub {
@@ -59,15 +60,14 @@ impl PhysicalLayer for Hub {
 
     /// Broadcast a byte to all connected interfaces except the one with the given index
     async fn transmit(&self, byte: u8, exclude: Option<usize>) {
-        for fut in self
-            .interfaces()
-            .iter()
-            .enumerate()
-            .filter(|(index, interface)| interface.is_connected() && exclude != Some(*index))
-            .map(|(_, interface)| interface.send(byte))
-        {
-            fut.await;
-        }
+        join_all(
+            self.interfaces()
+                .iter()
+                .enumerate()
+                .filter(|(index, interface)| interface.is_connected() && exclude != Some(*index))
+                .map(|(_, interface)| interface.send(byte)),
+        )
+        .await;
     }
 }
 
