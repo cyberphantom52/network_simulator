@@ -1,7 +1,8 @@
-mod layers;
 mod devices;
+mod layers;
 mod utils;
 
-fn main() {
-    println!("Hello, world!");
+#[tokio::main]
+async fn main() {
+
 }
