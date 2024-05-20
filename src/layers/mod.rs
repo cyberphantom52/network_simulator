@@ -2,7 +2,6 @@ mod physical;
 mod datalink;
 
 pub use physical::{PhysicalLayer, ConnectionMap, Interface};
-pub use datalink::DataLinkLayer;
 
 #[derive(Debug, Clone)]
 pub enum Identifier {
