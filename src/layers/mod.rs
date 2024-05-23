@@ -1,17 +1,7 @@
-mod physical;
 mod datalink;
+mod nic;
+mod physical;
 
-pub use physical::{PhysicalLayer, ConnectionMap, Interface};
-
-#[derive(Debug, Clone)]
-pub enum Identifier {
-    Name(String),
-}
-
-impl ToString for Identifier {
-    fn to_string(&self) -> String {
-        match self {
-            Identifier::Name(name) => name.clone(),
-        }
-    }
-}
+pub use physical::{PhysicalLayer, Link};
+pub use datalink::{AccessControl, ErrorControl, MacAddr, TransmitState};
+pub use nic::NIC;
