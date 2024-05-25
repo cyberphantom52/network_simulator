@@ -1,4 +1,5 @@
 mod crc;
+pub use crc::calculate_crc;
 
 #[macro_export]
 macro_rules! arc_mutex {
