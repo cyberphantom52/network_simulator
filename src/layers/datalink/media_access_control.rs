@@ -93,6 +93,9 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         }
     }
 
+    /// Encapsulates a frame with the Ethernet header and frame check sequence
+    ///
+    /// Also pads the frame to make sure the it meets the minimum frame size requirement
     fn encapsulate_frame(&self, dest: &MacAddr, src: &MacAddr, type_len: TypeLen, frame: Vec<u8>) -> Vec<u8> {
         let pad_size = MIN_FRAME_SIZE.saturating_sub(ETHERNET_HEADER_SIZE + CRC_SIZE + frame.len());
         let header = EthernetHeader::new(src, dest, type_len);
@@ -108,6 +111,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         encapsulated_frame
     }
 
+    /// Decapsulates a frame and returns the destination, source, type/length, and data
     fn decapsulate_frame(&self, frame: Vec<u8>) -> (MacAddr, MacAddr, u16, Vec<u8>) {
         let mut dest = [0; 6];
         let mut src = [0; 6];
@@ -123,6 +127,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         return (MacAddr::from(dest), MacAddr::from(src), type_len, data);
     }
 
+    /// An async process that is continuously running and transmits bytes on the network
     async fn byte_transmitter(&self) {
         loop {
             if self.nic().await.transmitting() {
@@ -144,6 +149,9 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         }
     }
 
+    /// The interface for MAC Client by which it can transmit a frame
+    ///
+    /// Uses the CSMA/CD algorithm to transmit the frame
     async fn transmit_frame(
         &self,
         dest: &MacAddr,
