@@ -4,10 +4,10 @@ mod header;
 mod logical_link_control;
 mod media_access_control;
 
-use error_control::ErrorControl;
-use flow_control::FlowControl;
-use logical_link_control::LogicalLinkControl;
-use media_access_control::AccessControl;
+pub use error_control::ErrorControl;
+pub use flow_control::FlowControl;
+pub use logical_link_control::LogicalLinkControl;
+pub use media_access_control::{AccessControl, TransmitState};
 
 #[derive(Debug, Clone)]
 pub struct MacAddr([u8; 6]);
