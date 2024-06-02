@@ -1,11 +1,12 @@
-use crate::layers::physical::PhysicalLayer;
-use futures::Future;
-use tokio::sync::MutexGuard;
 use super::{
     error_control::ErrorControl,
     header::{EthernetHeader, TypeLen},
     MacAddr,
 };
+
+use crate::layers::physical::PhysicalLayer;
+use futures::{Future, FutureExt};
+use tokio::sync::MutexGuard;
 
 const FLAG: u8 = 0b10101011;
 
@@ -47,6 +48,25 @@ pub struct TransmitState {
     new_collision: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct ReceiveState {
+    incoming_frame: Vec<u8>,
+    receiving: bool,
+    receive_succeeeding: bool,
+    valid_length: bool,
+}
+
+impl Default for ReceiveState {
+    fn default() -> Self {
+        ReceiveState {
+            incoming_frame: Vec::new(),
+            receiving: false,
+            receive_succeeeding: false,
+            valid_length: false,
+        }
+    }
+}
+
 impl Default for TransmitState {
     fn default() -> Self {
         TransmitState {
@@ -60,15 +80,16 @@ impl Default for TransmitState {
     }
 }
 
-pub enum RecieveStatus {
-    Ok,
-    LengthError,
+#[derive(Debug, Clone)]
+pub enum ReceiveStatus {
+    Ok(MacAddr, MacAddr, u16, Vec<u8>),
+    FrameTooLong,
     FrameCheckError,
-    AlignmentError,
 }
 
 pub trait AccessControl: PhysicalLayer + ErrorControl {
     fn transmit_state(&self) -> impl Future<Output = MutexGuard<TransmitState>>;
+    fn receive_state(&self) -> impl Future<Output = MutexGuard<ReceiveState>>;
 
     /// Backoff for a random number time slots specified by the attempt number
     ///
@@ -106,25 +127,60 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
             vec![0b01010101; pad_size].as_ref(),
         ].concat();
         let fcs = Self::fcs(&encapsulated_frame);
-        encapsulated_frame.extend(fcs.to_be_bytes());
-
+        encapsulated_frame.extend(fcs.to_le_bytes());
         encapsulated_frame
     }
 
+    fn recognize_address(&self, destination: &MacAddr) -> bool {
+        // TODO: Promiscuous and multicast mode
+        // destination == &MacAddr::broadcast() || destination == self.mac()
+        true
+    }
+
     /// Decapsulates a frame and returns the destination, source, type/length, and data
-    fn decapsulate_frame(&self, frame: Vec<u8>) -> (MacAddr, MacAddr, u16, Vec<u8>) {
+    async fn decapsulate_frame(&self) -> Result<ReceiveStatus, ReceiveStatus> {
+        fn remove_padding(type_len: TypeLen, data: Vec<u8>) -> Vec<u8> {
+            if type_len >= MIN_TYPE_VAL {
+                return data;
+            }
+
+            if type_len as usize <= MAX_BASIC_FRAME_SIZE - 18 {
+                if data.len() != type_len as usize {
+                    return data[0..type_len as usize].to_vec();
+                }
+            }
+
+            return data;
+        }
+
+        // TODO: If we use Option, we can use .take() to get the frame and set it to None
+        let mut frame = self.receive_state().await.incoming_frame.clone();
+        if Self::fcs(&frame) != 0 {
+            return Err(ReceiveStatus::FrameCheckError);
+        }
+
         let mut dest = [0; 6];
-        let mut src = [0; 6];
-        dest.copy_from_slice(&frame[0..6]);
-        src.copy_from_slice(&frame[6..12]);
-        let type_len = u16::from_be_bytes([frame[13], frame[14]]);
+        dest.copy_from_slice(&frame[1..7]);
 
-        let data = match type_len >= MIN_TYPE_VAL {
-            true => frame[15..frame.len() - CRC_SIZE].to_vec(),
-            false => frame[15..(15 + type_len as usize)].to_vec(),
-        };
+        self.receive_state().await.receive_succeeeding = self.recognize_address(&MacAddr::from(dest));
+        if self.receive_state().await.receive_succeeeding {
+            let mut src = [0; 6];
+            src.copy_from_slice(&frame[7..13]);
+            let type_len = u16::from_be_bytes([frame[13], frame[14]]);
+            frame.drain(..15);
+            let data = remove_padding(type_len, frame);
+            if data.len() > MAX_ENVELOPE_FRAME_SIZE {
+                return Err(ReceiveStatus::FrameTooLong);
+            }
+            return Ok(ReceiveStatus::Ok(
+                MacAddr::from(dest),
+                MacAddr::from(src),
+                type_len,
+                data,
+            ));
+        }
 
-        return (MacAddr::from(dest), MacAddr::from(src), type_len, data);
+        Err(ReceiveStatus::FrameCheckError)
     }
 
     /// An async process that is continuously running and transmits bytes on the network
@@ -169,7 +225,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
                 self.backoff(state.attempts).await;
             }
 
-            state.current_transmit_byte = 1;
+            state.current_transmit_byte = 0;
             state.last_transmit_byte = state.outgoing_frame.len();
             state.transmit_succeeding = true;
             self.nic().await.set_transmitting(true);
@@ -186,5 +242,46 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         }
 
         Err(TransmitStatus::ExcessiveCollisions)
+    }
+
+    async fn receive_frame(&self) -> Result<ReceiveStatus, ReceiveStatus> {
+        let mut result = Err(ReceiveStatus::FrameCheckError);
+        while !self.receive_state().await.receive_succeeeding {
+            while !self.receive_state().await.receive_succeeeding {
+                self.receive_state()
+                    .map(|mut state| {
+                        state.receiving = true;
+                        state.receive_succeeeding = true;
+                    })
+                    .await;
+
+                if self.receive_state().await.receiving {
+                    let mut frame = Vec::new();
+                    while self.carrier_sense().await {
+                        if let Some(byte) = self.receive().await {
+                            frame.push(byte);
+                        }
+                    }
+
+                    self.receive_state()
+                        .map(|mut state| {
+                            state.incoming_frame = frame;
+                            state.receiving = false;
+                            state.receive_succeeeding = true;
+                        })
+                        .await;
+                }
+
+                self.receive_state()
+                    .map(|mut state| {
+                        let frame_size = state.incoming_frame.len();
+                        state.receive_succeeeding =
+                            state.receive_succeeeding && frame_size >= MIN_FRAME_SIZE;
+                    })
+                    .await;
+            }
+            result = self.decapsulate_frame().await;
+        }
+        return result;
     }
 }
