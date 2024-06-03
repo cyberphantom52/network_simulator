@@ -95,17 +95,6 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         self.nic().map(|nic| nic.mac())
     }
 
-    /// Backoff for a random number time slots specified by the attempt number
-    ///
-    /// Uses the exponential backoff algorithm
-    async fn backoff(&self, attempt: usize) {
-        use rand::Rng;
-        use std::time::Duration;
-        let max_backoff = 2usize.pow(attempt.min(MAX_BACKOFF) as u32);
-        let backoff = (rand::thread_rng().gen_range(0..max_backoff) * SLOT_SIZE) as u64;
-        tokio::time::sleep(Duration::from_millis(backoff)).await;
-    }
-
     /// An async process that watches for collisions on the network
     /// and sets the collision flag if a collision is detected
     async fn watch_for_collision(&self) {
@@ -219,6 +208,14 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         type_len: TypeLen,
         frame: Vec<u8>,
     ) -> Result<TransmitStatus, TransmitStatus> {
+        async fn backoff(attempt: usize) {
+            use rand::Rng;
+            use std::time::Duration;
+            let max_backoff = 2usize.pow(attempt.min(MAX_BACKOFF) as u32);
+            let backoff = (rand::thread_rng().gen_range(0..max_backoff) * SLOT_SIZE) as u64;
+            tokio::time::sleep(Duration::from_millis(backoff)).await;
+        }
+
         let mut state = self.transmit_state().await;
         state.outgoing_frame = self.encapsulate_frame(dest, src, type_len, frame);
         state.attempts = 0;
@@ -226,7 +223,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
         while state.attempts < MAX_ATTEMPTS && !state.transmit_succeeding {
             if state.attempts > 0 {
-                self.backoff(state.attempts).await;
+                backoff(state.attempts).await;
             }
 
             state.current_transmit_byte = 0;
