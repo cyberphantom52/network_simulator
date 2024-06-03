@@ -9,7 +9,7 @@ pub use flow_control::FlowControl;
 pub use logical_link_control::LogicalLinkControl;
 pub use media_access_control::{AccessControl, TransmitState, ReceiveState, ReceiveStatus};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacAddr([u8; 6]);
 
 impl Default for MacAddr {
