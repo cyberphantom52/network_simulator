@@ -91,6 +91,10 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
     fn transmit_state(&self) -> impl Future<Output = MutexGuard<TransmitState>>;
     fn receive_state(&self) -> impl Future<Output = MutexGuard<ReceiveState>>;
 
+    fn mac(&self) -> impl Future<Output = MacAddr> {
+        self.nic().map(|nic| nic.mac())
+    }
+
     /// Backoff for a random number time slots specified by the attempt number
     ///
     /// Uses the exponential backoff algorithm
