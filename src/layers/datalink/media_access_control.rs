@@ -91,16 +91,16 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
     fn transmit_state(&self) -> impl Future<Output = MutexGuard<TransmitState>>;
     fn receive_state(&self) -> impl Future<Output = MutexGuard<ReceiveState>>;
 
-    fn mac(&self) -> impl Future<Output = MacAddr> {
-        self.nic().map(|nic| nic.mac())
+    fn mac(&self) -> MacAddr {
+        self.nic().mac()
     }
 
     /// An async process that watches for collisions on the network
     /// and sets the collision flag if a collision is detected
     async fn watch_for_collision(&self) {
-        while self.nic().await.transmitting() {
+        while self.transmitting() {
             let mut state = self.transmit_state().await;
-            if state.transmit_succeeding && self.collision_detect().await {
+            if state.transmit_succeeding && self.collision_detect() {
                 state.new_collision = true;
                 state.transmit_succeeding = false;
             }
@@ -179,18 +179,18 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
     /// An async process that is continuously running and transmits bytes on the network
     async fn byte_transmitter(&self) {
         loop {
-            if self.nic().await.transmitting() {
+            if self.transmitting() {
                 loop {
-                    while self.nic().await.transmitting() {
+                    while self.transmitting() {
                         let mut state = self.transmit_state().await;
                         self.transmit(state.outgoing_frame[state.current_transmit_byte]).await;
                         if state.new_collision {
                             state.current_transmit_byte = 1;
                             state.new_collision = false;
-                            self.nic().await.set_transmitting(false);
+                            self.nic().set_transmitting(false);
                         } else {
                             state.current_transmit_byte += 1;
-                            self.nic().await.set_transmitting(state.current_transmit_byte < state.last_transmit_byte);
+                            self.nic().set_transmitting(state.current_transmit_byte < state.last_transmit_byte);
                         }
                     }
                 }
@@ -229,7 +229,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
             state.current_transmit_byte = 0;
             state.last_transmit_byte = state.outgoing_frame.len();
             state.transmit_succeeding = true;
-            self.nic().await.set_transmitting(true);
+            self.nic().set_transmitting(true);
 
             drop(state);
             self.watch_for_collision().await;
@@ -258,7 +258,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
                 if self.receive_state().await.receiving {
                     let mut frame = Vec::new();
-                    while self.carrier_sense().await {
+                    while self.carrier_sense() {
                         if let Some(byte) = self.receive().await {
                             frame.push(byte);
                         }

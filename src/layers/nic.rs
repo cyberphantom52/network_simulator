@@ -1,53 +1,65 @@
 use super::{physical::Link, MacAddr};
-use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
+use futures::executor::block_on;
+use tokio::sync::{
+    mpsc::error::{TryRecvError, TrySendError},
+    RwLock,
+};
 
 /// Abstraction of a network interface card (NIC).
 ///
 /// Provides physical layer primitives for sending and receiving data.
 /// As well as Layer 2 primitives for addressing and switching.
 pub struct NIC {
-    mac: MacAddr,
-    transmitting: bool,
-    connection: Option<Link>,
+    mac: RwLock<MacAddr>,
+    transmitting: RwLock<bool>,
+    connection: RwLock<Option<Link>>,
 }
 
 impl Default for NIC {
     fn default() -> Self {
         NIC {
-            mac: MacAddr::default(),
-            transmitting: false,
-            connection: None,
+            mac: Default::default(),
+            transmitting: RwLock::new(false),
+            connection: RwLock::new(None),
         }
     }
 }
 
 impl NIC {
     pub fn mac(&self) -> MacAddr {
-        self.mac.clone()
-    }
-
-    pub fn connection(&self) -> Option<&Link> {
-        self.connection.as_ref()
+        block_on(async { self.mac.read().await.clone() })
     }
 
     pub fn transmitting(&self) -> bool {
-        self.transmitting
+        block_on(async { self.transmitting.read().await.clone() })
     }
 
-    pub fn set_transmitting(&mut self, transmitting: bool) {
-        self.transmitting = transmitting;
+    pub fn set_transmitting(&self, transmitting: bool) {
+        block_on(async { *self.transmitting.write().await = transmitting })
     }
 
-    pub fn set_connection(&mut self, connection: Option<Link>) {
-        self.connection = connection;
+    pub fn set_connection(&self, connection: Option<Link>) {
+        block_on(async {
+            *self.connection.write().await = connection;
+        })
+    }
+
+    pub fn is_receiving(&self) -> bool {
+        block_on(async {
+            if let Some(conn) = self.connection.read().await.as_ref() {
+                conn.is_recieving()
+            } else {
+                false
+            }
+        })
     }
 
     pub fn is_connected(&self) -> bool {
-        self.connection.is_some()
+        block_on(async { self.connection.read().await.is_some() })
     }
 
-    pub fn transmit(&mut self, byte: u8) {
-        if let Some(conn) = self.connection.as_ref() {
+    pub async fn transmit(&self, byte: u8) {
+        if let Some(conn) = self.connection.read().await.as_ref() {
             let status = conn.send(byte);
             match status {
                 Ok(()) => (),
@@ -61,13 +73,15 @@ impl NIC {
         }
     }
 
-    pub fn recieve(&mut self) -> Option<u8> {
-        if let Some(conn) = self.connection.as_mut() {
+    pub async fn recieve(&self) -> Option<u8> {
+        let mut handle = self.connection.write().await;
+        if let Some(conn) = handle.as_mut() {
             return match conn.recv() {
                 Ok(byte) => Some(byte),
                 Err(e) => {
                     match e {
                         TryRecvError::Disconnected => {
+                            drop(handle);
                             self.set_connection(None);
                         }
                         _ => (),
@@ -86,31 +100,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_disconnect() {
-        let mut nic1 = NIC::default();
-        let mut nic2 = NIC::default();
+        let nic1 = NIC::default();
+        let nic2 = NIC::default();
 
         let (one, two) = Link::connection();
         nic1.set_connection(Some(one));
         nic2.set_connection(Some(two));
-        assert!(nic1.connection().is_some());
-        assert!(nic2.connection().is_some());
+        assert!(nic1.is_connected());
+        assert!(nic2.is_connected());
         nic1.set_connection(None);
 
-        nic2.recieve();
-        assert!(nic1.connection().is_none());
-        assert!(nic2.connection().is_none());
+        nic2.recieve().await;
+        assert!(!nic1.is_connected());
+        assert!(!nic2.is_connected());
     }
 
-    #[test]
-    fn test_transmit_recieve() {
-        let mut nic1 = NIC::default();
-        let mut nic2 = NIC::default();
+    #[tokio::test]
+    async fn test_transmit_recieve() {
+        let nic1 = NIC::default();
+        let nic2 = NIC::default();
 
         let (one, two) = Link::connection();
         nic1.set_connection(Some(one));
         nic2.set_connection(Some(two));
 
-        nic1.transmit(0x42);
-        assert_eq!(nic2.recieve(), Some(0x42));
+        nic1.transmit(0x42).await;
+        assert_eq!(nic2.recieve().await, Some(0x42));
     }
 }

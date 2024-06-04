@@ -1,9 +1,8 @@
-use std::sync::Arc;
 use super::hub::Hub;
 use crate::layers::{Link, PhysicalLayer, NIC};
 use crate::utils::Simulateable;
 use futures::future::join_all;
-use tokio::sync::MutexGuard;
+use std::sync::Arc;
 
 const N_JUNC: usize = 5;
 
@@ -20,10 +19,14 @@ impl Default for Bus {
 }
 
 impl Bus {
-    async fn available_interface(&self) -> Option<MutexGuard<NIC>> {
-        for iface in self.junctions.iter() {
-            if let Some(iface) = iface.available_interface().await {
-                return Some(iface);
+    pub fn index(number: usize) -> (usize, usize) {
+        (number >> 16, number & 0xFFFF)
+    }
+
+    fn available_interface(&self) -> Option<usize> {
+        for (i, junction) in self.junctions.iter().enumerate() {
+            if let Some(interface) = junction.available_interface() {
+                return Some(i << 16 | interface);
             }
         }
 
@@ -32,20 +35,26 @@ impl Bus {
 }
 
 impl PhysicalLayer for Bus {
-    async fn nic(&self) -> tokio::sync::MutexGuard<crate::layers::NIC> {
-        // todo, this might be a problem since available_interface may return None
-        self.available_interface().await.unwrap()
+    fn nic(&self) -> &NIC {
+        if let Some(interface) = self.available_interface() {
+            let (junction, iface) = Bus::index(interface);
+            &self.junctions[junction].interface(iface)
+        } else {
+            panic!("No NIC available")
+        }
     }
 
     async fn connect(&self, other: Arc<impl PhysicalLayer>) {
         let (one, two) = Link::connection();
-        if let Some(mut iface) = self.available_interface().await {
+        if let Some(iface) = self.available_interface() {
+            let (junction, iface) = Bus::index(iface);
+            let iface = &self.junctions[junction].interface(iface);
             iface.set_connection(Some(one));
-            other.nic().await.set_connection(Some(two));
+            other.nic().set_connection(Some(two));
         }
     }
 
-    async fn disconnect(&mut self) {
+    async fn disconnect(&self) {
         println!("Disconnect is not implemented for Bus");
     }
 }
@@ -61,7 +70,7 @@ mod tests {
     use super::*;
 
     struct TestDevice {
-        nic: tokio::sync::Mutex<NIC>,
+        nic: NIC,
     }
 
     impl Default for TestDevice {
@@ -72,8 +81,8 @@ mod tests {
         }
     }
     impl PhysicalLayer for TestDevice {
-        async fn nic(&self) -> tokio::sync::MutexGuard<NIC> {
-            self.nic.lock().await
+        fn nic(&self) -> &NIC {
+            &self.nic
         }
     }
 
