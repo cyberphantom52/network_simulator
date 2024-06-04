@@ -3,7 +3,7 @@
     http://www.sunshine2k.de/articles/coding/crc/understanding_crc.html
     https://reveng.sourceforge.io/crc-catalogue/all.htm
 */
-pub(crate) const CRC32_MEF: CrcModel = CrcModel {
+const CRC32_MEF: CrcModel = CrcModel {
     initial: 0xFFFF_FFFF,
     final_xor: 0x0000_0000,
     polynomial: 0x741b8cd7,
@@ -11,7 +11,7 @@ pub(crate) const CRC32_MEF: CrcModel = CrcModel {
     reflect_output: true,
 };
 
-pub struct CrcModel {
+struct CrcModel {
     initial: u32,
     polynomial: u32,
     final_xor: u32,
@@ -19,7 +19,7 @@ pub struct CrcModel {
     reflect_output: bool,
 }
 
-pub(crate) fn calculate_crc(bytes: &[u8]) -> u32 {
+pub fn calculate_crc(bytes: &[u8]) -> u32 {
     let mut crc = CRC32_MEF.initial;
     for &byte in bytes {
         let data = match CRC32_MEF.reflect_input {

@@ -1,80 +1,106 @@
-use crate::{
-    layers::{ConnectionMap, Identifier, Interface, PhysicalLayer},
-    utils::Simulateable,
-};
-use futures::{future::join_all, StreamExt};
-use rand::{distributions::Alphanumeric, Rng};
+use std::sync::Arc;
+use crate::layers::{Link, PhysicalLayer, NIC};
+use crate::utils::Simulateable;
+use tokio::sync::{Mutex, MutexGuard};
 
 pub struct Hub {
-    id: Identifier,
-    interfaces: [Interface; 8],
-    map: ConnectionMap,
+    interfaces: [Mutex<NIC>; 8],
+}
+
+impl PhysicalLayer for Hub {
+    async fn connect(&self, other: Arc<impl PhysicalLayer>) {
+        let (one, two) = Link::connection();
+        if let Some(mut iface) = self.available_interface().await {
+            iface.set_connection(Some(one));
+            other.nic().await.set_connection(Some(two));
+        }
+    }
+
+    async fn nic(&self) -> MutexGuard<NIC> {
+        // todo, this might be a problem since available_interface may return None
+        self.available_interface().await.unwrap()
+    }
+
+    async fn disconnect(&mut self) {
+        unimplemented!("Hub does not have a NIC")
+    }
+}
+
+impl Hub {
+    pub async fn available_interface(&self) -> Option<MutexGuard<NIC>> {
+        for iface in self.interfaces.iter() {
+            let unlocked = iface.lock().await;
+            if !unlocked.is_connected() {
+                return Some(unlocked);
+            }
+        }
+
+        None
+    }
 }
 
 impl Default for Hub {
     fn default() -> Self {
-        let id = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(5)
-            .map(char::from)
-            .collect::<String>();
         Hub {
-            id: Identifier::Name(format!("hub-{}", id)),
             interfaces: Default::default(),
-            map: Default::default(),
         }
-    }
-}
-
-impl PhysicalLayer for Hub {
-    fn id(&self) -> &Identifier {
-        &self.id
-    }
-
-    fn conn_map(&self) -> &ConnectionMap {
-        &self.map
-    }
-
-    fn conn_map_mut(&mut self) -> &mut ConnectionMap {
-        &mut self.map
-    }
-
-    fn interfaces(&self) -> &[Interface] {
-        &self.interfaces
-    }
-
-    fn interfaces_mut(&mut self) -> &mut [Interface] {
-        &mut self.interfaces
-    }
-
-    /// Receive a byte from a random connected interface
-    async fn receive(&self, _: Option<usize>) -> Option<(u8, usize)> {
-        use rand::seq::IteratorRandom;
-        self.interfaces()
-            .iter()
-            .enumerate()
-            .filter(|(_, inteface)| inteface.is_connected())
-            .choose(&mut rand::thread_rng())
-            .and_then(|(index, inteface)| inteface.recv().map(|byte| (byte, index)))
-    }
-
-    /// Broadcast a byte to all connected interfaces except the one with the given index
-    async fn transmit(&self, byte: u8, exclude: Option<usize>) {
-        join_all(
-            self.interfaces()
-                .iter()
-                .enumerate()
-                .filter(|(index, interface)| interface.is_connected() && exclude != Some(*index))
-                .map(|(_, interface)| interface.send(byte)),
-        )
-        .await;
     }
 }
 
 impl Simulateable for Hub {
     async fn tick(&self) {
-        if let Some((byte, port)) = self.receive(None).await {
-            self.transmit(byte, Some(port)).await;
+        let mut connected_ifaces = Vec::new();
+        for iface in self.interfaces.iter() {
+            let iface = iface.lock().await;
+            if iface.is_connected() {
+                connected_ifaces.push(iface);
+            }
         }
+
+        let bytes = connected_ifaces
+            .iter_mut()
+            .map(|iface| iface.recieve())
+            .filter_map(|byte| byte)
+            .collect::<Vec<_>>();
+
+        connected_ifaces.iter_mut().for_each(|iface| {
+            bytes.iter().for_each(|byte| iface.transmit(*byte));
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestDevice {
+        nic: Mutex<NIC>,
+    }
+
+    impl Default for TestDevice {
+        fn default() -> Self {
+            TestDevice {
+                nic: Default::default(),
+            }
+        }
+    }
+    impl PhysicalLayer for TestDevice {
+        async fn nic(&self) -> tokio::sync::MutexGuard<NIC> {
+            self.nic.lock().await
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hub() {
+        let hub = Arc::new(Hub::default());
+        let dev1 = Arc::new(TestDevice::default());
+        let dev2 = Arc::new(TestDevice::default());
+
+        dev1.connect(hub.clone()).await;
+        hub.connect(dev2.clone()).await;
+
+        dev1.transmit(0x09).await;
+        hub.tick().await;
+        assert_eq!(dev2.receive().await, Some(0x09));
     }
 }

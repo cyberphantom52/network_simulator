@@ -1,5 +1,7 @@
 use super::MacAddr;
 
+pub type TypeLen = u16;
+
 #[repr(u16)]
 #[derive(Copy, Clone, Debug)]
 pub enum EtherType {
@@ -22,15 +24,15 @@ impl From<u16> for EtherType {
 pub(super) struct EthernetHeader {
     destination: MacAddr,
     source: MacAddr,
-    ether_type: EtherType,
+    type_len: TypeLen,
 }
 
 impl EthernetHeader {
-    pub fn new(source: &MacAddr, destination: &MacAddr, ether_type: EtherType) -> Self {
+    pub fn new(source: &MacAddr, destination: &MacAddr, type_len: TypeLen) -> Self {
         EthernetHeader {
             destination: destination.clone(),
             source: source.clone(),
-            ether_type,
+            type_len,
         }
     }
 
@@ -47,7 +49,7 @@ impl EthernetHeader {
         let mut bytes = [0; 14];
         bytes[0..6].copy_from_slice(&self.destination.0);
         bytes[6..12].copy_from_slice(&self.source.0);
-        bytes[12..14].copy_from_slice(&(self.ether_type as u16).to_be_bytes());
+        bytes[12..14].copy_from_slice(&self.type_len.to_be_bytes());
         bytes
     }
 
@@ -56,11 +58,11 @@ impl EthernetHeader {
         let mut source = [0; 6];
         destination.copy_from_slice(&bytes[0..6]);
         source.copy_from_slice(&bytes[6..12]);
-        let ether_type = u16::from_be_bytes([bytes[12], bytes[13]]);
+        let type_len = u16::from_be_bytes([bytes[12], bytes[13]]);
         Some(EthernetHeader {
             destination: MacAddr(destination),
             source: MacAddr(source),
-            ether_type: EtherType::from(ether_type),
+            type_len,
         })
     }
 }
