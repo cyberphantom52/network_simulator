@@ -10,7 +10,7 @@ use tokio::sync::{
 /// Provides physical layer primitives for sending and receiving data.
 /// As well as Layer 2 primitives for addressing and switching.
 pub struct NIC {
-    mac: RwLock<MacAddr>,
+    mac: MacAddr,
     transmitting: RwLock<bool>,
     connection: RwLock<Option<Link>>,
 }
@@ -27,7 +27,7 @@ impl Default for NIC {
 
 impl NIC {
     pub fn mac(&self) -> MacAddr {
-        block_on(async { self.mac.read().await.clone() })
+        self.mac.clone()
     }
 
     pub fn transmitting(&self) -> bool {
