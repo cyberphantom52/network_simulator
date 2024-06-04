@@ -7,7 +7,7 @@ pub struct Hub {
 }
 
 impl PhysicalLayer for Hub {
-    async fn connect(&self, other: Arc<impl PhysicalLayer>) {
+    fn connect(&self, other: Arc<impl PhysicalLayer>) {
         let (one, two) = Link::connection();
         if let Some(interface) = self.available_interface() {
             let iface = &self.interfaces[interface];
@@ -104,8 +104,8 @@ mod tests {
         let dev1 = Arc::new(TestDevice::default());
         let dev2 = Arc::new(TestDevice::default());
 
-        dev1.connect(hub.clone()).await;
-        hub.connect(dev2.clone()).await;
+        dev1.connect(hub.clone());
+        hub.connect(dev2.clone());
 
         dev1.transmit(0x09).await;
         hub.tick().await;

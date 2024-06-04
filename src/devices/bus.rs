@@ -44,7 +44,7 @@ impl PhysicalLayer for Bus {
         }
     }
 
-    async fn connect(&self, other: Arc<impl PhysicalLayer>) {
+    fn connect(&self, other: Arc<impl PhysicalLayer>) {
         let (one, two) = Link::connection();
         if let Some(iface) = self.available_interface() {
             let (junction, iface) = Bus::index(iface);
@@ -92,8 +92,8 @@ mod tests {
         let dev1 = Arc::new(TestDevice::default());
         let dev2 = Arc::new(TestDevice::default());
 
-        dev1.connect(bus.clone()).await;
-        bus.connect(dev2.clone()).await;
+        dev1.connect(bus.clone());
+        bus.connect(dev2.clone());
 
         dev1.transmit(0x09).await;
         bus.tick().await;
