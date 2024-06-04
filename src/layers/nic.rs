@@ -1,5 +1,5 @@
 use super::{physical::Link, MacAddr};
-use futures::executor::block_on;
+use futures::{executor::block_on, Future, FutureExt};
 use tokio::sync::{
     mpsc::error::{TryRecvError, TrySendError},
     RwLock,
@@ -30,32 +30,36 @@ impl NIC {
         self.mac.clone()
     }
 
-    pub fn transmitting(&self) -> bool {
-        block_on(async { self.transmitting.read().await.clone() })
+    pub fn transmitting(&self) -> impl Future<Output = bool> + '_ {
+        self.transmitting.read().map(|guard| *guard)
     }
 
     pub fn set_transmitting(&self, transmitting: bool) {
-        block_on(async { *self.transmitting.write().await = transmitting })
+        block_on(async {
+            self.transmitting
+                .write()
+                .map(move |mut guard| *guard = transmitting)
+                .await
+        })
     }
 
     pub fn set_connection(&self, connection: Option<Link>) {
         block_on(async {
-            *self.connection.write().await = connection;
+            self.connection
+                .write()
+                .map(move |mut guard| *guard = connection)
+                .await
         })
     }
 
-    pub fn is_receiving(&self) -> bool {
-        block_on(async {
-            if let Some(conn) = self.connection.read().await.as_ref() {
-                conn.is_recieving()
-            } else {
-                false
-            }
-        })
+    pub fn is_receiving(&self) -> impl Future<Output = bool> + '_ {
+        self.connection
+            .read()
+            .map(|lock| lock.as_ref().map_or(false, |conn| conn.is_recieving()))
     }
 
-    pub fn is_connected(&self) -> bool {
-        block_on(async { self.connection.read().await.is_some() })
+    pub fn is_connected(&self) -> impl Future<Output = bool> + '_ {
+        self.connection.read().map(|lock| lock.is_some())
     }
 
     pub async fn transmit(&self, byte: u8) {
@@ -106,13 +110,13 @@ mod tests {
         let (one, two) = Link::connection();
         nic1.set_connection(Some(one));
         nic2.set_connection(Some(two));
-        assert!(nic1.is_connected());
-        assert!(nic2.is_connected());
+        assert!(nic1.is_connected().await);
+        assert!(nic2.is_connected().await);
         nic1.set_connection(None);
 
         nic2.recieve().await;
-        assert!(!nic1.is_connected());
-        assert!(!nic2.is_connected());
+        assert!(!nic1.is_connected().await);
+        assert!(!nic2.is_connected().await);
     }
 
     #[tokio::test]
