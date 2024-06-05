@@ -7,7 +7,7 @@ mod media_access_control;
 pub use error_control::ErrorControl;
 pub use flow_control::FlowControl;
 pub use logical_link_control::LogicalLinkControl;
-pub use media_access_control::{AccessControl, TransmitState, ReceiveState, ReceiveStatus};
+pub use media_access_control::{AccessControl, ReceiveState, TransmitState, ReceiveStatus};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacAddr([u8; 6]);

@@ -39,45 +39,18 @@ pub enum TransmitStatus {
     ExcessiveCollisions,
 }
 
+#[derive(Default)]
 pub struct TransmitState {
     outgoing_frame: Vec<u8>,
-    attempts: usize,
-    current_transmit_byte: usize,
-    last_transmit_byte: usize,
-    transmit_succeeding: bool,
     new_collision: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ReceiveState {
     incoming_frame: Vec<u8>,
     receiving: bool,
     receive_succeeeding: bool,
     valid_length: bool,
-}
-
-impl Default for ReceiveState {
-    fn default() -> Self {
-        ReceiveState {
-            incoming_frame: Vec::new(),
-            receiving: false,
-            receive_succeeeding: false,
-            valid_length: false,
-        }
-    }
-}
-
-impl Default for TransmitState {
-    fn default() -> Self {
-        TransmitState {
-            outgoing_frame: Vec::new(),
-            attempts: 0,
-            current_transmit_byte: 0,
-            last_transmit_byte: 0,
-            transmit_succeeding: false,
-            new_collision: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -95,22 +68,16 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         self.nic().mac()
     }
 
-    /// An async process that watches for collisions on the network
-    /// and sets the collision flag if a collision is detected
-    async fn watch_for_collision(&self) {
-        while self.transmitting() {
-            let mut state = self.transmit_state().await;
-            if state.transmit_succeeding && self.collision_detect() {
-                state.new_collision = true;
-                state.transmit_succeeding = false;
-            }
-        }
-    }
-
     /// Encapsulates a frame with the Ethernet header and frame check sequence
     ///
     /// Also pads the frame to make sure the it meets the minimum frame size requirement
-    fn encapsulate_frame(&self, dest: &MacAddr, src: &MacAddr, type_len: TypeLen, frame: Vec<u8>) -> Vec<u8> {
+    fn encapsulate_frame(
+        &self,
+        dest: &MacAddr,
+        src: &MacAddr,
+        type_len: TypeLen,
+        frame: Vec<u8>,
+    ) -> Vec<u8> {
         let pad_size = MIN_FRAME_SIZE.saturating_sub(ETHERNET_HEADER_SIZE + CRC_SIZE + frame.len());
         let header = EthernetHeader::new(src, dest, type_len);
         let mut encapsulated_frame = [
@@ -118,7 +85,8 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
             header.to_be_bytes().as_ref(),
             frame.as_ref(),
             vec![0b01010101; pad_size].as_ref(),
-        ].concat();
+        ]
+        .concat();
         let fcs = Self::fcs(&encapsulated_frame);
         encapsulated_frame.extend(fcs.to_le_bytes());
         encapsulated_frame
@@ -154,7 +122,8 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
         let mut dest = [0; 6];
         dest.copy_from_slice(&frame[1..7]);
 
-        self.receive_state().await.receive_succeeeding = self.recognize_address(&MacAddr::from(dest));
+        self.receive_state().await.receive_succeeeding =
+            self.recognize_address(&MacAddr::from(dest));
         if self.receive_state().await.receive_succeeeding {
             let mut src = [0; 6];
             src.copy_from_slice(&frame[7..13]);
@@ -177,22 +146,31 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
     /// An async process that is continuously running and transmits bytes on the network
     async fn byte_transmitter(&self) {
-        loop {
-            if self.transmitting() {
-                loop {
-                    while self.transmitting() {
-                        let mut state = self.transmit_state().await;
-                        self.transmit(state.outgoing_frame[state.current_transmit_byte]).await;
-                        if state.new_collision {
-                            state.current_transmit_byte = 1;
-                            state.new_collision = false;
-                            self.nic().set_transmitting(false);
-                        } else {
-                            state.current_transmit_byte += 1;
-                            self.nic().set_transmitting(state.current_transmit_byte < state.last_transmit_byte);
-                        }
-                    }
-                }
+        let mut transmitted_byte = 0;
+        while self.transmitting() {
+            let mut state = self.transmit_state().await;
+            self.transmit(state.outgoing_frame[transmitted_byte]).await;
+            if state.new_collision {
+                state.new_collision = false;
+                self.nic().set_transmitting(false);
+            } else {
+                transmitted_byte += 1;
+                self.nic()
+                    .set_transmitting(transmitted_byte < state.outgoing_frame.len());
+            }
+        }
+    }
+
+    /// An async process that watches for collisions on the network
+    /// and sets the collision flag if a collision is detected
+    async fn watch_for_collision(&self, transmit_succeeding: &mut bool) {
+        while self.transmitting() {
+            if *transmit_succeeding && self.collision_detect() {
+                self.transmit_state()
+                    .map(|mut state| state.new_collision = true)
+                    .await;
+                *transmit_succeeding = false;
+                break;
             }
         }
     }
@@ -215,29 +193,29 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
             tokio::time::sleep(Duration::from_millis(backoff)).await;
         }
 
-        let mut state = self.transmit_state().await;
-        state.outgoing_frame = self.encapsulate_frame(dest, src, type_len, frame);
-        state.attempts = 0;
-        state.transmit_succeeding = false;
+        let mut attempts = 0;
+        let mut transmit_succeeding = false;
+        self.transmit_state()
+            .map(|mut state| {
+                state.outgoing_frame = self.encapsulate_frame(dest, src, type_len, frame)
+            })
+            .await;
 
-        while state.attempts < MAX_ATTEMPTS && !state.transmit_succeeding {
-            if state.attempts > 0 {
-                backoff(state.attempts).await;
+        while attempts < MAX_ATTEMPTS && !transmit_succeeding {
+            if attempts > 0 {
+                backoff(attempts).await;
             }
 
-            state.current_transmit_byte = 0;
-            state.last_transmit_byte = state.outgoing_frame.len();
-            state.transmit_succeeding = true;
+            transmit_succeeding = true;
+            /* This start the actual transmission */
             self.nic().set_transmitting(true);
 
-            drop(state);
-            self.watch_for_collision().await;
-            state = self.transmit_state().await;
+            self.watch_for_collision(&mut transmit_succeeding).await;
 
-            state.attempts += 1;
+            attempts += 1;
         }
 
-        if state.transmit_succeeding {
+        if transmit_succeeding {
             return Ok(TransmitStatus::Ok);
         }
 
@@ -282,6 +260,8 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
             }
             result = self.decapsulate_frame().await;
         }
+
+        self.receive_state().await.receive_succeeeding = false;
         return result;
     }
 }
