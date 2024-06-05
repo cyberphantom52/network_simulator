@@ -8,6 +8,15 @@ macro_rules! arc_mutex {
     };
 }
 
+#[macro_export]
+macro_rules! run_async {
+    ($data:expr) => {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async move { $data })
+        })
+    };
+}
+
 pub trait Simulateable {
     async fn tick(&self);
 }
