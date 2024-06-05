@@ -1,21 +1,12 @@
-use crate::layers::{Link, PhysicalLayer, NIC};
+use crate::layers::{PhysicalLayer, NIC};
 use crate::utils::Simulateable;
 use std::sync::Arc;
 
 pub struct Hub {
-    interfaces: [NIC; 8],
+    interfaces: [Arc<NIC>; 8],
 }
 
 impl PhysicalLayer for Hub {
-    fn connect(&self, other: Arc<impl PhysicalLayer>) {
-        let (one, two) = Link::connection();
-        if let Some(interface) = self.available_interface() {
-            let iface = &self.interfaces[interface];
-            iface.set_connection(Some(one));
-            other.nic().set_connection(Some(two));
-        }
-    }
-
     fn nic(&self) -> &NIC {
         if let Some(interface) = self.available_interface() {
             &self.interfaces[interface]
@@ -98,7 +89,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_hub() {
         let hub = Arc::new(Hub::default());
         let dev1 = Arc::new(TestDevice::default());

@@ -1,5 +1,3 @@
-use futures::{future::join, Future, FutureExt};
-
 use super::Link;
 use crate::layers::NIC;
 use std::sync::Arc;
@@ -7,14 +5,14 @@ use std::sync::Arc;
 pub trait PhysicalLayer {
     fn nic(&self) -> &NIC;
 
-    async fn connect(&self, other: Arc<impl PhysicalLayer>) {
+    fn connect(&self, other: Arc<impl PhysicalLayer>) {
         let (one, two) = Link::connection();
-        self.nic().set_connection(Some(one)).await;
-        other.nic().set_connection(Some(two)).await;
+        self.nic().set_connection(Some(one));
+        other.nic().set_connection(Some(two));
     }
 
     async fn disconnect(&self) {
-        self.nic().set_connection(None).await;
+        self.nic().set_connection(None);
     }
 
     async fn transmit(&self, byte: u8) {
@@ -25,15 +23,15 @@ pub trait PhysicalLayer {
         self.nic().recieve().await
     }
 
-    fn carrier_sense(&self) -> impl Future<Output = bool> {
+    fn carrier_sense(&self) -> bool {
         self.nic().is_receiving()
     }
 
-    fn transmitting(&self) -> impl Future<Output = bool> {
+    fn transmitting(&self) -> bool {
         self.nic().transmitting()
     }
 
-    fn collision_detect(&self) -> impl Future<Output = bool> + '_ {
-        join(self.carrier_sense(), self.transmitting()).map(|(cs, t)| cs && t)
+    fn collision_detect(&self) -> bool {
+        self.carrier_sense() && self.transmitting()
     }
 }

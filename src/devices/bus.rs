@@ -1,5 +1,5 @@
 use super::hub::Hub;
-use crate::layers::{Link, PhysicalLayer, NIC};
+use crate::layers::{PhysicalLayer, NIC};
 use crate::utils::Simulateable;
 use futures::future::join_all;
 use std::sync::Arc;
@@ -7,14 +7,17 @@ use std::sync::Arc;
 const N_JUNC: usize = 5;
 
 pub struct Bus {
-    junctions: [Hub; N_JUNC],
+    junctions: [Arc<Hub>; N_JUNC],
 }
 
 impl Default for Bus {
     fn default() -> Self {
-        Bus {
-            junctions: Default::default(),
+        let junctions: [Arc<Hub>; N_JUNC] = Default::default();
+        for i in 1..N_JUNC {
+            junctions[i].connect(junctions[i - 1].clone());
         }
+
+        Bus { junctions }
     }
 }
 
@@ -41,16 +44,6 @@ impl PhysicalLayer for Bus {
             &self.junctions[junction].interface(iface)
         } else {
             panic!("No NIC available")
-        }
-    }
-
-    fn connect(&self, other: Arc<impl PhysicalLayer>) {
-        let (one, two) = Link::connection();
-        if let Some(iface) = self.available_interface() {
-            let (junction, iface) = Bus::index(iface);
-            let iface = &self.junctions[junction].interface(iface);
-            iface.set_connection(Some(one));
-            other.nic().set_connection(Some(two));
         }
     }
 
@@ -86,17 +79,20 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_hub() {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_bus() {
         let bus = Arc::new(Bus::default());
-        let dev1 = Arc::new(TestDevice::default());
-        let dev2 = Arc::new(TestDevice::default());
+        let devices: [Arc<TestDevice>; 32] = Default::default();
 
-        dev1.connect(bus.clone());
-        bus.connect(dev2.clone());
+        for device in &devices {
+            bus.connect(device.clone());
+        }
 
-        dev1.transmit(0x09).await;
-        bus.tick().await;
-        assert_eq!(dev2.receive().await, Some(0x09));
+        devices[0].transmit(0x09).await;
+        for _ in 0..1 {
+            bus.tick().await;
+        }
+
+        assert_eq!(devices[31].receive().await, Some(0x09));
     }
 }

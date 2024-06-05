@@ -98,9 +98,9 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
     /// An async process that watches for collisions on the network
     /// and sets the collision flag if a collision is detected
     async fn watch_for_collision(&self) {
-        while self.transmitting().await {
+        while self.transmitting() {
             let mut state = self.transmit_state().await;
-            if state.transmit_succeeding && self.collision_detect().await {
+            if state.transmit_succeeding && self.collision_detect() {
                 state.new_collision = true;
                 state.transmit_succeeding = false;
             }
@@ -179,9 +179,9 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
     /// An async process that is continuously running and transmits bytes on the network
     async fn byte_transmitter(&self) {
         loop {
-            if self.transmitting().await {
+            if self.transmitting() {
                 loop {
-                    while self.transmitting().await {
+                    while self.transmitting() {
                         let mut state = self.transmit_state().await;
                         self.transmit(state.outgoing_frame[state.current_transmit_byte]).await;
                         if state.new_collision {
@@ -258,7 +258,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
                 if self.receive_state().await.receiving {
                     let mut frame = Vec::new();
-                    while self.carrier_sense().await {
+                    while self.carrier_sense() {
                         if let Some(byte) = self.receive().await {
                             frame.push(byte);
                         }
