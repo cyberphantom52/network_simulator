@@ -126,8 +126,7 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
     fn recognize_address(&self, destination: &MacAddr) -> bool {
         // TODO: Promiscuous and multicast mode
-        // destination == &MacAddr::broadcast() || destination == self.mac()
-        true
+        destination == &MacAddr::broadcast() || destination == &self.mac()
     }
 
     /// Decapsulates a frame and returns the destination, source, type/length, and data

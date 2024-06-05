@@ -24,6 +24,12 @@ impl From<[u8; 6]> for MacAddr {
     }
 }
 
+impl MacAddr {
+    fn broadcast() -> Self {
+        MacAddr([0xFF; 6])
+    }
+}
+
 impl std::fmt::Display for MacAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
