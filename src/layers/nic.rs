@@ -1,5 +1,5 @@
 use super::{physical::Link, MacAddr};
-use futures::{executor::block_on, Future, FutureExt};
+use futures::{Future, FutureExt};
 use tokio::sync::{
     mpsc::error::{TryRecvError, TrySendError},
     RwLock,
@@ -34,22 +34,16 @@ impl NIC {
         self.transmitting.read().map(|guard| *guard)
     }
 
-    pub fn set_transmitting(&self, transmitting: bool) {
-        block_on(async {
-            self.transmitting
-                .write()
-                .map(move |mut guard| *guard = transmitting)
-                .await
-        })
+    pub fn set_transmitting(&self, transmitting: bool) -> impl Future<Output = ()> + '_ {
+        self.transmitting
+            .write()
+            .map(move |mut guard| *guard = transmitting)
     }
 
-    pub fn set_connection(&self, connection: Option<Link>) {
-        block_on(async {
-            self.connection
-                .write()
-                .map(move |mut guard| *guard = connection)
-                .await
-        })
+    pub fn set_connection(&self, connection: Option<Link>) -> impl Future<Output = ()> + '_ {
+        self.connection
+            .write()
+            .map(move |mut guard| *guard = connection)
     }
 
     pub fn is_receiving(&self) -> impl Future<Output = bool> + '_ {
@@ -69,7 +63,7 @@ impl NIC {
                 Ok(()) => (),
                 Err(e) => match e {
                     TrySendError::Closed(_) => {
-                        self.set_connection(None);
+                        self.set_connection(None).await;
                     }
                     _ => (),
                 },
@@ -86,7 +80,7 @@ impl NIC {
                     match e {
                         TryRecvError::Disconnected => {
                             drop(handle);
-                            self.set_connection(None);
+                            self.set_connection(None).await;
                         }
                         _ => (),
                     }
@@ -108,11 +102,11 @@ mod tests {
         let nic2 = NIC::default();
 
         let (one, two) = Link::connection();
-        nic1.set_connection(Some(one));
-        nic2.set_connection(Some(two));
+        nic1.set_connection(Some(one)).await;
+        nic2.set_connection(Some(two)).await;
         assert!(nic1.is_connected().await);
         assert!(nic2.is_connected().await);
-        nic1.set_connection(None);
+        nic1.set_connection(None).await;
 
         nic2.recieve().await;
         assert!(!nic1.is_connected().await);
@@ -125,8 +119,8 @@ mod tests {
         let nic2 = NIC::default();
 
         let (one, two) = Link::connection();
-        nic1.set_connection(Some(one));
-        nic2.set_connection(Some(two));
+        nic1.set_connection(Some(one)).await;
+        nic2.set_connection(Some(two)).await;
 
         nic1.transmit(0x42).await;
         assert_eq!(nic2.recieve().await, Some(0x42));

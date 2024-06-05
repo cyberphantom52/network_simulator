@@ -7,14 +7,14 @@ use std::sync::Arc;
 pub trait PhysicalLayer {
     fn nic(&self) -> &NIC;
 
-    fn connect(&self, other: Arc<impl PhysicalLayer>) {
+    async fn connect(&self, other: Arc<impl PhysicalLayer>) {
         let (one, two) = Link::connection();
-        self.nic().set_connection(Some(one));
-        other.nic().set_connection(Some(two));
+        self.nic().set_connection(Some(one)).await;
+        other.nic().set_connection(Some(two)).await;
     }
 
-    fn disconnect(&self) {
-        self.nic().set_connection(None);
+    async fn disconnect(&self) {
+        self.nic().set_connection(None).await;
     }
 
     async fn transmit(&self, byte: u8) {
