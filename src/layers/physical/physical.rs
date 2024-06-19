@@ -11,10 +11,6 @@ pub trait PhysicalLayer {
         other.nic().set_connection(Some(two));
     }
 
-    async fn disconnect(&self) {
-        self.nic().set_connection(None);
-    }
-
     async fn transmit(&self, byte: u8) {
         self.nic().transmit(byte).await;
     }

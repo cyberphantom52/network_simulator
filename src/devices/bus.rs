@@ -46,10 +46,6 @@ impl PhysicalLayer for Bus {
             panic!("No NIC available")
         }
     }
-
-    async fn disconnect(&self) {
-        println!("Disconnect is not implemented for Bus");
-    }
 }
 
 impl Simulateable for Bus {

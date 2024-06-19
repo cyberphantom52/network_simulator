@@ -14,10 +14,6 @@ impl PhysicalLayer for Hub {
             panic!("No NIC available")
         }
     }
-
-    async fn disconnect(&self) {
-        unimplemented!("Hub does not have a NIC")
-    }
 }
 
 impl Hub {
