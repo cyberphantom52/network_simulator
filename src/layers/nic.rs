@@ -1,6 +1,5 @@
-use super::physical::Link;
+use super::{physical::Link, MacAddr};
 use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
-
 /// Abstraction of a network interface card (NIC).
 ///
 /// Provides physical layer primitives for sending and receiving data.
@@ -8,6 +7,7 @@ use tokio::sync::mpsc::error::{TryRecvError, TrySendError};
 pub struct NIC {
     transmitting: bool,
     connection: Option<Link>,
+    mac_addr: MacAddr,
 }
 
 impl Default for NIC {
@@ -15,6 +15,7 @@ impl Default for NIC {
         NIC {
             transmitting: false,
             connection: None,
+            mac_addr: MacAddr::default(),
         }
     }
 }
