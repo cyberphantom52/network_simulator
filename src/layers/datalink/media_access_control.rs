@@ -146,17 +146,19 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
     /// An async process that is continuously running and transmits bytes on the network
     async fn byte_transmitter(&self) {
-        let mut transmitted_byte = 0;
-        while self.transmitting() {
-            let mut state = self.transmit_state().await;
-            self.transmit(state.outgoing_frame[transmitted_byte]).await;
-            if state.new_collision {
-                state.new_collision = false;
-                self.nic().set_transmitting(false);
-            } else {
-                transmitted_byte += 1;
-                self.nic()
-                    .set_transmitting(transmitted_byte < state.outgoing_frame.len());
+        loop {
+            let mut transmitted_byte = 0;
+            while self.transmitting() {
+                let mut state = self.transmit_state().await;
+                self.transmit(state.outgoing_frame[transmitted_byte]).await;
+                if state.new_collision {
+                    state.new_collision = false;
+                    self.nic().set_transmitting(false);
+                } else {
+                    transmitted_byte += 1;
+                    self.nic()
+                        .set_transmitting(transmitted_byte < state.outgoing_frame.len());
+                }
             }
         }
     }
