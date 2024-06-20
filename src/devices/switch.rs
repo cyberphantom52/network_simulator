@@ -1,7 +1,8 @@
 use crate::layers::{
-    AccessControl, ErrorControl, MacAddr, PhysicalLayer, ReceiveState, ReceiveStatus,
+    AccessControl, ErrorControl, Link, MacAddr, PhysicalLayer, ReceiveState, ReceiveStatus,
     TransmitState, NIC,
 };
+use crate::run_async;
 use crate::utils::Simulateable;
 use futures::Future;
 use rand::seq::IteratorRandom;
@@ -26,9 +27,17 @@ pub struct Switch {
 
 impl PhysicalLayer for Switch {
     fn nic(&self) -> &NIC {
-        let iface = *self.working_interface.try_read().unwrap();
+        let iface = run_async!(self.working_interface.read().await.clone());
 
         &self.interfaces[iface]
+    }
+
+    fn connect(&self, other: Arc<impl PhysicalLayer>) {
+        if let Some(i) = self.available_interface() {
+            let (one, two) = Link::connection();
+            self.interfaces[i].set_connection(Some(one));
+            other.nic().set_connection(Some(two));
+        }
     }
 }
 
@@ -82,31 +91,29 @@ impl Simulateable for Switch {
             match self.receive_frame().await {
                 Ok(status) => match status {
                     ReceiveStatus::Ok(dest, src, type_len, data) => {
+                        self.switching_table.lock().await.entry(src.clone()).or_insert((0, iface));
+
                         let entry = self.switching_table.lock().await.get(&dest).cloned();
                         if let Some((_, interface)) = entry {
-                            println!("Switching frame from {} to {}", src, dest);
                             *self.working_interface.write().await = interface;
                             self.transmit_frame(&dest, &src, type_len, data).await;
                         } else {
-                            self.switching_table
-                                .lock()
-                                .await
-                                .insert(src.clone(), (0, iface));
                             for i in valid_ifaces {
                                 if i != iface {
                                     *self.working_interface.write().await = i;
-                                    self.transmit_frame(&dest, &src, type_len, data.clone()).await;
+                                    self.transmit_frame(&dest, &src, type_len, data.clone())
+                                        .await;
                                 }
                             }
                         }
                     }
                     _ => unreachable!(),
                 },
-                Err(e) => eprintln!("Error receiving frame: {:?}", e),
+                Err(e) => eprintln!("Error Switching frame: {:?}", e),
             }
         }
 
-        println!("Switching Table: {:?}", self.switching_table.lock().await);
+        println!("Table: {:?}", self.switching_table.lock().await);
     }
 }
 
@@ -149,26 +156,37 @@ mod tests {
         let dev3 = Arc::new(TestDevice::default());
 
         let d1 = dev1.clone();
-        // let s1 = switch.clone();
+        let d2 = dev2.clone();
+        let s1 = switch.clone();
 
+        tokio::spawn(async move { s1.byte_transmitter().await });
         tokio::spawn(async move { d1.byte_transmitter().await });
-        // tokio::spawn(async move { s1.byte_transmitter().await });
+        tokio::spawn(async move { d2.byte_transmitter().await });
 
         switch.connect(dev1.clone());
-        // dev2.connect(switch.clone());
-        // switch.connect(dev3.clone());
+        switch.connect(dev2.clone());
+        switch.connect(dev3.clone());
 
         let message = "Hello".bytes().collect::<Vec<u8>>();
         let len = message.len() as u16;
         println!(
-            "Transmit Status: {:?}",
-            dev1.transmit_frame(&dev2.mac(), &dev1.mac(), len, message)
+            "D1 Transmit Status: {:?}",
+            dev1.transmit_frame(&dev2.mac(), &dev1.mac(), len, message.clone())
                 .await
         );
-        for i in 0..100 {
-            println!("Tick: {}", i);
+        for i in 0..50 {
             switch.tick().await;
         }
-        // assert!(dev3.receive_frame().await.is_ok());
+        println!("{:?}", dev2.receive_frame().await);
+
+        println!(
+            "D2 Transmit Status: {:?}",
+            dev2.transmit_frame(&dev1.mac(), &dev2.mac(), len, message.clone())
+                .await
+        );
+        for i in 0..50 {
+            switch.tick().await;
+        }
+        println!("{:?}", dev1.receive_frame().await);
     }
 }

@@ -237,10 +237,8 @@ pub trait AccessControl: PhysicalLayer + ErrorControl {
 
                 if self.receive_state().await.receiving {
                     let mut frame = Vec::new();
-                    while self.carrier_sense() {
-                        if let Some(byte) = self.receive().await {
-                            frame.push(byte);
-                        }
+                    while let Some(byte) = self.receive().await {
+                        frame.push(byte);
                     }
 
                     self.receive_state()
